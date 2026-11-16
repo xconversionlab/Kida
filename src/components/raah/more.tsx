@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Award, Bell, BriefcaseBusiness, ChevronRight, Coins, CreditCard, Crown, Gift, History, HelpCircle, Package, Settings, ShieldCheck, ShieldAlert } from "lucide-react";
 import { company } from "@/lib/raah/company";
 import { LEGAL } from "@/lib/raah/legal";
 import { payLabel } from "@/lib/raah/labels";
@@ -97,38 +98,95 @@ export function ProfileScreen() {
     image.src = url;
   }
 
+  const menu = [
+    { label: "Help", hint: `Call ${company.supportPhone}`, icon: HelpCircle, action: () => open("support") },
+    { label: "Parcel – Send Items", hint: "Send a parcel by bike", icon: Package, action: () => setToast("Parcel booking is coming soon.") },
+    { label: "Payment", hint: "Payment methods", icon: CreditCard, action: () => open("payments") },
+    { label: "My Rides", hint: "Your booking history", icon: History, action: () => open("history") },
+    { label: "Safety", hint: "Safety tools and emergency contacts", icon: ShieldCheck, action: () => open("safe") },
+    { label: "Refer and Earn", hint: "Get ₹50", icon: Gift, action: () => open("offers") },
+    { label: "My Rewards", hint: "Offers and rewards", icon: Award, action: () => open("offers") },
+    { label: "Power Pass", hint: "Ride pass · coming soon", icon: Crown, action: () => setToast("Kida Power Pass is coming soon.") },
+    { label: "Kida Coins", hint: "Rewards balance · coming soon", icon: Coins, action: () => setToast("Kida Coins are coming soon.") },
+    { label: "Notifications", hint: "Booking updates", icon: Bell, action: () => setToast("Notifications will appear here when enabled.") },
+    { label: "Claims", hint: "Raise a booking or payment issue", icon: ShieldAlert, action: () => open("ticket") },
+    { label: "Settings", hint: "App preferences", icon: Settings, action: () => open("settings") },
+  ];
+
   return (
     <div className="pb-8">
       <Header title={copy("profile")} subtitle={copy("nameSub")} onBack={back} />
       <div className="space-y-4 px-4">
-        <div className="flex items-center gap-3">
+        <div className="kida-account-card flex items-center gap-3 rounded-3xl border border-line bg-surface p-3 shadow-sm">
           <Avatar name={draft || name} photo={photo} className="size-16" />
-          <label className="text-sm font-semibold text-primary">
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold">{name}</p>
+            <p className="text-sm text-muted tabular">+91 {prettyPhone(phone)}</p>
+            <p className="mt-1 text-xs font-semibold text-primary">{copy("verified")}</p>
+          </div>
+          <label className="text-xs font-semibold text-primary">
             Change photo
-            <input
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              onChange={(event) => onPhoto(event.target.files?.[0])}
-            />
+            <input type="file" accept="image/*" className="sr-only" onChange={(event) => onPhoto(event.target.files?.[0])} />
           </label>
         </div>
-        <input className={inputClass} value={draft} onChange={(e) => setDraft(e.target.value)} aria-label={copy("namePh")} />
-        <Btn variant="soft" onClick={() => draft.trim().length > 1 && setName(draft)}>
-          {copy("save")}
-        </Btn>
-        <Card>
-          <p className="text-sm text-muted">{copy("verified")}</p>
-          <p className="font-semibold tabular">+91 {prettyPhone(phone)}</p>
-        </Card>
-        <PlaceRow label={copy("home")} value={home?.selection.line} onPick={() => pick("home")} onClear={home ? () => removePlace("home") : undefined} />
-        <PlaceRow label={copy("work")} value={work?.selection.line} onPick={() => pick("work")} onClear={work ? () => removePlace("work") : undefined} />
-        {extras.map((item) => (
-          <PlaceRow key={item.id} label={item.label} value={item.selection.line} onPick={() => pick("extra")} onClear={() => removePlace("extra", item.id)} />
-        ))}
-        <Btn variant="line" className="w-full" onClick={() => pick("extra")}>
-          {copy("addPlace")}
-        </Btn>
+
+        <div>
+          <h2 className="mb-2 px-1 text-sm font-semibold text-muted">Your account</h2>
+          <div className="overflow-hidden rounded-3xl border border-line bg-surface">
+            {menu.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={item.action}
+                  className="flex min-h-[58px] w-full items-center gap-3 border-b border-line px-3 py-2.5 text-left last:border-b-0"
+                >
+                  <Icon className="size-[18px] shrink-0 text-muted" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-semibold">{item.label}</span>
+                    <span className="block truncate text-xs text-muted">{item.hint}</span>
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-muted" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setToast("Kida driver-partner onboarding details will be available soon.")}
+          className="flex w-full items-center gap-3 rounded-3xl bg-primary-soft p-3 text-left"
+        >
+          <BriefcaseBusiness className="size-8 shrink-0 text-primary" />
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-ink">Earn money with Kida</span>
+            <span className="block text-xs text-muted">Become a Kida driver-partner</span>
+          </span>
+          <ChevronRight className="size-4 text-muted" />
+        </button>
+
+        <div className="rounded-2xl border border-line p-3">
+          <p className="mb-2 text-sm font-semibold">Edit profile</p>
+          <input className={inputClass} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label={copy("namePh")} />
+          <Btn variant="soft" className="mt-2" onClick={() => draft.trim().length > 1 && setName(draft)}>{copy("save")}</Btn>
+        </div>
+
+        <div>
+          <h2 className="mb-2 font-semibold">Saved places</h2>
+          <PlaceRow label={copy("home")} value={home?.selection.line} onPick={() => pick("home")} onClear={home ? () => removePlace("home") : undefined} />
+          <div className="mt-2">
+            <PlaceRow label={copy("work")} value={work?.selection.line} onPick={() => pick("work")} onClear={work ? () => removePlace("work") : undefined} />
+          </div>
+          {extras.map((item) => (
+            <div className="mt-2" key={item.id}>
+              <PlaceRow label={item.label} value={item.selection.line} onPick={() => pick("extra")} onClear={() => removePlace("extra", item.id)} />
+            </div>
+          ))}
+          <Btn variant="line" className="mt-2 w-full" onClick={() => pick("extra")}>{copy("addPlace")}</Btn>
+        </div>
+
         <div>
           <h2 className="font-semibold">{copy("emergency")}</h2>
           <div className="mt-2 space-y-2">
@@ -138,40 +196,21 @@ export function ProfileScreen() {
                   <span className="block font-medium">{item.name}</span>
                   <span className="text-sm text-muted tabular">+91 {prettyPhone(item.phone)}</span>
                 </span>
-                <button type="button" className="text-sm text-danger" onClick={() => removeEmergency(item.id)}>
-                  {copy("cancel")}
-                </button>
+                <button type="button" className="text-sm text-danger" onClick={() => removeEmergency(item.id)}>{copy("cancel")}</button>
               </div>
             ))}
             {emergency.length < 3 ? (
               <div className="grid grid-cols-2 gap-2">
-                <input className={inputClass} value={contact} onChange={(e) => setContact(e.target.value)} placeholder={copy("namePh")} aria-label={copy("emergency")} />
-                <input
-                  className={inputClass}
-                  inputMode="numeric"
-                  value={contactPhone}
-                  onChange={(e) => setContactPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  placeholder="98XXXXXX00"
-                  aria-label={copy("phoneTitle")}
-                />
+                <input className={inputClass} value={contact} onChange={(event) => setContact(event.target.value)} placeholder={copy("namePh")} aria-label={copy("emergency")} />
+                <input className={inputClass} inputMode="numeric" value={contactPhone} onChange={(event) => setContactPhone(event.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="98XXXXXX00" aria-label={copy("phoneTitle")} />
               </div>
             ) : null}
-            <Btn
-              variant="soft"
-              disabled={!contact.trim() || !/^[6-9]\d{9}$/.test(contactPhone)}
-              onClick={() => {
-                saveEmergency(contact, contactPhone);
-                setContact("");
-                setContactPhone("");
-              }}
-            >
+            <Btn variant="soft" disabled={!contact.trim() || !/^[6-9]\d{9}$/.test(contactPhone)} onClick={() => { saveEmergency(contact, contactPhone); setContact(""); setContactPhone(""); }}>
               {copy("save")}
             </Btn>
           </div>
         </div>
-        <button type="button" className="text-sm font-semibold text-primary" onClick={() => open("language")}>
-          {copy("language")}
-        </button>
+        <button type="button" className="text-sm font-semibold text-primary" onClick={() => open("language")}>{copy("language")}</button>
       </div>
     </div>
   );
@@ -477,11 +516,11 @@ export function SupportScreen() {
     <div className="pb-8">
       <Header title={copy("supportTitle")} onBack={back} />
       <div className="space-y-3 px-4">
-        <div className="block rounded-3xl bg-primary px-4 py-4 text-primary-ink opacity-70 cursor-not-allowed" aria-disabled="true" title="Official Kida support number will be added before launch">
+        <a href={`tel:${company.supportTel}`} className="block rounded-3xl bg-primary px-4 py-4 text-primary-ink">
           <span className="block text-sm">{copy("callNow")}</span>
-          <span className="font-display text-3xl tabular">{copy("numberNote")}</span>
+          <span className="font-display text-3xl tabular">{company.supportPhone}</span>
           <span className="mt-1 block text-sm">{company.hours}</span>
-        </div>
+        </a>
         <Card>
           <p className="font-semibold">{copy("ruralTitle")}</p>
           <p className="mt-1 text-sm text-muted">{copy("ruralBody")}</p>
@@ -641,7 +680,7 @@ export function CompanyScreen() {
           <p className="text-sm">
             {copy("gstin")}: <span className="tabular">{company.gstin}</span>
           </p>
-          <p className="mt-2 text-sm">{company.supportPhone}</p>
+          <a className="mt-2 block text-sm font-semibold text-primary tabular" href={`tel:${company.supportTel}`}>Call +91 {company.supportPhone}</a>
           <p className="text-sm">{company.email}</p>
           <p className="text-sm">{company.website}</p>
           <p className="mt-2 text-sm text-muted">{company.grievance}</p>
