@@ -2,13 +2,14 @@
 
 ## The goal (repeat at every work checkpoint)
 
-**Build and finish the Kida CUSTOMER-FACING ride-booking app as a working client-approval prototype. Do not start the driver's app until the customer app has been demonstrated and approved.**
+**Build and finish the Kida CUSTOMER-FACING ride-booking app as a working client-approval prototype and deliver an installable Android APK. Do not start the driver's app until the customer app has been demonstrated and approved.**
 
-This file is the scope anchor. If work starts to drift, return here. Do not reopen already-settled decisions or create another ZIP instead of improving the live repository.
+This file is the scope anchor. If work starts to drift, return here. Do not reopen already-settled decisions or create another ZIP instead of improving the live repository or delivering the APK.
 
 ## Phase 1 — Customer app (current)
 
 - Product: Kida customer ride-booking app.
+- Required deliverable: installable Android APK named Kida, built from the customer app and suitable for client review/sideload testing. The current Capacitor wrapper loads the deployed customer app over HTTPS, so an internet connection is required.
 - Brand: preserve the client-approved Kida logo artwork; do not redesign the symbol, road motif, typography or proportions. Use the approved yellow-and-white identity, with black only where needed for logo contrast and readable text.
 - Languages exposed in the prototype: English, Hindi and Marathi.
 - Booking choices: E-Bike Taxi, Auto, Mini and Sedan (retain other existing vehicle classes only if they do not distract from the requested customer journey).
@@ -45,7 +46,8 @@ Preserve these client requirements for Phase 2:
 5. Backend, OTP provider, secure customer accounts, dispatch and driver tracking.
 6. Licensed payment gateway and security/privacy review.
 7. Operational, insurance, permits and state-by-state legal review.
+8. Production signing key and release build for Play Store or wider distribution.
 
 ## Working rule
 
-At each project checkpoint, state the goal in one line: **Customer app first; client approval next; driver app only after approval.** Work directly in this repository and verify each change.
+At each project checkpoint, state the goal in one line: **Customer app first; APK delivery and client approval next; driver app only after approval.** Work directly in this repository and verify each change.
