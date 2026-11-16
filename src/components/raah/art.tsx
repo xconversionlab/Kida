@@ -4,11 +4,14 @@ export function VehicleArt({ id, className = "h-12 w-20" }: { id: VehicleId; cla
   if (id === "bike") {
     return (
       <svg viewBox="0 0 96 48" className={className} aria-hidden>
-        <circle cx="22" cy="34" r="9" fill="none" stroke="currentColor" strokeWidth="3" />
-        <circle cx="74" cy="34" r="9" fill="none" stroke="currentColor" strokeWidth="3" />
-        <path d="M22 34h18l10-14h16l8 14" fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" />
-        <path d="M46 20h12" stroke="var(--color-accent)" strokeWidth="3" strokeLinecap="round" />
-        <circle cx="58" cy="18" r="3" fill="var(--color-primary)" />
+        <circle cx="20" cy="35" r="8" fill="none" stroke="currentColor" strokeWidth="3" />
+        <circle cx="76" cy="35" r="8" fill="none" stroke="currentColor" strokeWidth="3" />
+        <path d="M20 35h14l9-13h20l13 13" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M35 22h18l8 13H34" fill="var(--color-primary-soft)" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round" />
+        <path d="M38 16h17l5 5H39Z" fill="currentColor" />
+        <path d="M70 20l7-7h6" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+        <path d="M76 13h8" stroke="var(--color-accent)" strokeWidth="2.5" strokeLinecap="round" />
+        <path d="M47 25l-3 5h5l-2 5 7-8h-5l2-2Z" fill="var(--color-accent)" />
       </svg>
     );
   }
