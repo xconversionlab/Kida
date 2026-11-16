@@ -129,6 +129,26 @@ export const PLACES: Place[] = [
     { name: "Hanuman temple", kind: "temple", hint: "Temple arch" },
     { name: "Primary health centre", kind: "hospital", hint: "PHC veranda" },
   ]),
+  // Representative state and rural coverage for the all-India customer prototype.
+  build("ita", "Itanagar", "city", "Arunachal Pradesh", "Papum Pare", 27.144, 93.722),
+  build("zir", "Ziro", "town", "Arunachal Pradesh", "Lower Subansiri", 27.526, 93.85),
+  build("rai", "Raipur", "city", "Chhattisgarh", "Raipur", 21.2116, 81.659),
+  build("kan", "Kanker", "town", "Chhattisgarh", "Kanker", 20.0166, 81.4989),
+  build("gur", "Gurugram", "city", "Haryana", "Gurugram", 28.46, 77.03, ["gurgaon"]),
+  build("rkh", "Rakhigarhi", "village", "Haryana", "Hisar", 29.288119, 76.11315),
+  build("imp", "Imphal", "city", "Manipur", "Imphal West", 24.831, 93.946),
+  build("chr", "Cherapur", "village", "Manipur", "Imphal East", 24.595388, 94.018677),
+  build("gan", "Gangtok", "town", "Sikkim", "Gangtok", 27.32574, 88.61216),
+  build("sir", "Sirwani", "village", "Sikkim", "South Sikkim", 27.1364448, 88.3931154),
+  build("aga", "Agartala", "town", "Tripura", "West Tripura", 23.83, 91.29),
+  build("dee", "Dehradun", "city", "Uttarakhand", "Dehradun", 30.32, 78.03),
+  build("das", "Dasoli", "village", "Uttarakhand", "Pithoragarh", 29.890705, 80.051666),
+  build("sri", "Srinagar", "city", "Jammu and Kashmir", "Srinagar", 34.08, 74.80),
+  build("dpr", "Doodhpathri", "town", "Jammu and Kashmir", "Budgam", 33.85, 74.56),
+  build("kav", "Kavaratti", "town", "Lakshadweep", "Lakshadweep", 10.5668815, 72.6420307),
+  build("pud", "Puducherry", "city", "Puducherry", "Puducherry", 11.91, 79.81),
+  build("sil", "Silvassa", "town", "Dadra and Nagar Haveli", "Dadra and Nagar Haveli", 20.2665782, 73.0166178),
+  build("dam", "Daman", "town", "Daman and Diu", "Daman", 20.424388, 72.846682),
 ];
 
 export const RTO: Record<string, string> = {
@@ -157,6 +177,18 @@ export const RTO: Record<string, string> = {
   Ladakh: "LA",
   "Andaman and Nicobar": "AN",
   Nagaland: "NL",
+  "Arunachal Pradesh": "AR",
+  Chhattisgarh: "CG",
+  Haryana: "HR",
+  Manipur: "MN",
+  Sikkim: "SK",
+  Tripura: "TR",
+  Uttarakhand: "UK",
+  "Jammu and Kashmir": "JK",
+  Lakshadweep: "LD",
+  Puducherry: "PY",
+  "Dadra and Nagar Haveli": "DN",
+  "Daman and Diu": "DD",
 };
 
 export function getPlace(id: string) {
