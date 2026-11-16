@@ -5,7 +5,7 @@ export const LEGAL: Record<LegalDoc, { title: string; body: string[] }> = {
     title: "Terms and conditions",
     body: [
       "Draft for client review. This is not legal advice and it is not a filed customer agreement.",
-      "Raah is a prototype of a marketplace that would connect customers with independent drivers for bike, auto and cab trips across India.",
+      "Kida is a prototype of a marketplace that would connect customers with independent drivers for bike, auto and cab trips across India.",
       "A booking in this prototype does not create a transport contract. No driver is dispatched and no fare is collected.",
       "Production terms will cover eligibility, fares, cancellations, conduct, and the separate rules for app bookings and call-centre bookings.",
       "The company identifiers shown in the app are placeholders until incorporation details are issued.",
@@ -15,7 +15,7 @@ export const LEGAL: Record<LegalDoc, { title: string; body: string[] }> = {
     title: "Privacy policy",
     body: [
       "Draft for client review. This is not a filed privacy notice under the Digital Personal Data Protection Act, 2023.",
-      "The prototype stores your name, mobile number, saved places, rides and settings only in this browser. Nothing is sent to a Raah server.",
+      "The prototype stores your name, mobile number, saved places, rides and settings only in this browser. Nothing is sent to a Kida server.",
       "Location is read only after you tap a location button or an SMS-style link and allow it. A telephone call does not share GPS.",
       "You can delete the prototype data from Settings. A production service will need a consent record, purpose limitation, retention schedule and a grievance contact.",
       "Profile details are not shown on a public page.",
