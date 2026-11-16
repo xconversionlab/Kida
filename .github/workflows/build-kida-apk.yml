@@ -40,6 +40,9 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install required Android SDK packages
+        run: sdkmanager --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
       - name: Install Capacitor dependencies
         working-directory: android-wrapper
         run: npm install --no-audit --no-fund
@@ -48,7 +51,7 @@ jobs:
         working-directory: android-wrapper
         run: npx cap add android
 
-      - name: Add Kida location permissions
+      - name: Add Kida location permissions and approved launcher mark
         working-directory: android-wrapper
         shell: bash
         run: |
@@ -57,15 +60,50 @@ jobs:
           manifest = Path("android/app/src/main/AndroidManifest.xml")
           text = manifest.read_text()
           marker = "<application"
-          permissions = (
-              '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\\n'
-              '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\\n'
-              '    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\\n'
-          )
+          permissions = "\\n".join([
+              '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
+              '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />',
+              '    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />',
+          ]) + "\\n"
           if "ACCESS_FINE_LOCATION" not in text:
               text = text.replace(marker, permissions + marker, 1)
           manifest.write_text(text)
+
+          res = Path("android/app/src/main/res")
+          values = res / "values"
+          values.mkdir(parents=True, exist_ok=True)
+          (values / "kida_colors.xml").write_text(
+              '<?xml version="1.0" encoding="utf-8"?>\\n'
+              '<resources><color name="kida_launcher_background">#F5C518</color></resources>\\n'
+          )
+
+          adaptive = (
+              '<?xml version="1.0" encoding="utf-8"?>\\n'
+              '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\\n'
+              '  <background android:drawable="@color/kida_launcher_background" />\\n'
+              '  <foreground android:drawable="@drawable/kida_launcher_foreground" />\\n'
+              '</adaptive-icon>\\n'
+          )
+          adaptive_dir = res / "mipmap-anydpi-v26"
+          adaptive_dir.mkdir(parents=True, exist_ok=True)
+          (adaptive_dir / "ic_launcher.xml").write_text(adaptive)
+          (adaptive_dir / "ic_launcher_round.xml").write_text(adaptive)
           PY
+
+          if ! command -v magick >/dev/null 2>&1 && ! command -v convert >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+          fi
+          IMG="$(command -v magick || command -v convert)"
+          "$IMG" ../public/brand/kida-mark.svg -background '#F5C518' -gravity center -resize 790x593 -extent 1024x1024 /tmp/kida-launcher.png
+          "$IMG" ../public/brand/kida-mark.svg -background none -gravity center -resize 740x555 -extent 1024x1024 android/app/src/main/res/drawable-nodpi/kida_launcher_foreground.png
+          for item in "mdpi 48" "hdpi 72" "xhdpi 96" "xxhdpi 144" "xxxhdpi 192"; do
+            set -- $item
+            dir="android/app/src/main/res/mipmap-$1"
+            mkdir -p "$dir"
+            "$IMG" /tmp/kida-launcher.png -resize "$2"x"$2" "$dir/ic_launcher.png"
+            cp "$dir/ic_launcher.png" "$dir/ic_launcher_round.png"
+          done
 
       - name: Sync Capacitor configuration
         working-directory: android-wrapper
