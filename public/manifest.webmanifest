@@ -1,0 +1,16 @@
+{
+  "name": "Kida",
+  "short_name": "Kida",
+  "description": "Customer ride booking across cities, towns and villages in India.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffdf5",
+  "theme_color": "#f5c518",
+  "icons": [
+    {
+      "src": "/brand/kida-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
