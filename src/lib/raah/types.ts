@@ -29,7 +29,7 @@ export type PayMethod = "upi" | "qr" | "credit" | "debit" | "netbanking" | "cash
 
 export type Availability = "ready" | "limited" | "unavailable";
 
-export type ServiceMode = "ride" | "parcel" | "intercity" | "rental" | "airport" | "pet";
+export type ServiceMode = "ride" | "parcel" | "intercity" | "rental" | "airport" | "pet" | "transit" | "shared";
 
 export interface ServiceRequest {
   id: string;
@@ -151,6 +151,11 @@ export type RideStatus =
   | "completed"
   | "cancelled";
 
+export interface RouteCoordinate {
+  lat: number;
+  lng: number;
+}
+
 export interface Ride {
   id: string;
   status: RideStatus;
@@ -169,6 +174,8 @@ export interface Ride {
   source: "app" | "call";
   messages: ChatMessage[];
   tripPin?: string;
+  routePath?: RouteCoordinate[];
+  tipAmount?: number;
   womenDriverRequested?: boolean;
   stops?: Selection[];
   issue?: string;

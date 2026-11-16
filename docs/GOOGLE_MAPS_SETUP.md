@@ -1,6 +1,6 @@
 # Google Maps setup for Kida
 
-Kida uses the Google Maps JavaScript API for its live map when a key is configured. The same browser session uses Places Autocomplete (New), Nearby Search (New), and reverse geocoding to resolve the rider's current GPS position into a pickup address.
+Kida uses the Google Maps JavaScript API for its live map when a key is configured. The same browser session uses Places Autocomplete (New), Nearby Search (New), reverse geocoding, and the Routes Library for road distance and traffic-aware ETA.
 
 ## 1. Enable Google Maps Platform APIs
 
@@ -17,7 +17,7 @@ Attach a billing account to the project. Google Maps Platform usage is metered; 
 Create an API key and set:
 
 - Application restriction: **Websites**
-- API restrictions: **Maps JavaScript API**, **Places API (New)**, and **Geocoding API**
+- API restrictions: **Maps JavaScript API**, **Places API (New)**, **Geocoding API**, and **Routes API**
 
 Restrict website referrers to the actual Kida deployment domains. For the current Vercel deployment, allow the exact Kida customer prototype domain and any approved production domain. Avoid an unrestricted key or a wildcard covering every Vercel project.
 

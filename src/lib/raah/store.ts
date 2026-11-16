@@ -11,6 +11,7 @@ import type {
   LegalDoc,
   PayMethod,
   Ride,
+  RouteCoordinate,
   SavedPlace,
   Screen,
   Selection,
@@ -218,12 +219,12 @@ interface RaahState {
   setPromoInput: (value: string) => void;
   setPromo: (promo: PromoResult | null) => void;
   setWhen: (when: string) => void;
-  confirmBooking: () => void;
+  confirmBooking: (routeDistanceKm?: number, roadDurationMinutes?: number, routePath?: RouteCoordinate[]) => void;
   assignDriver: () => void;
   tickRide: () => void;
   completeRide: () => void;
   cancelRide: (reason: string) => void;
-  rateRide: (rating: number, feedback: string) => void;
+  rateRide: (rating: number, feedback: string, tipAmount?: number) => void;
   addMessage: (text: string, from?: "you" | "driver") => void;
   selectRide: (id: string) => void;
   saveEmergency: (name: string, phone: string) => void;
@@ -321,7 +322,7 @@ export const useRaah = create<RaahState>()(
       setLang: (lang) => set({ lang, languageChosen: true }),
       setPhone: (phone) => set({ phone }),
       verifyOtp: (code) => {
-        if (!/^\d{6}$/.test(code)) return false;
+        if (code !== "482913") return false;
         const s = get();
         set({ authed: true, screen: s.name ? "home" : "name", stack: [] });
         return true;
@@ -399,13 +400,20 @@ export const useRaah = create<RaahState>()(
       setPromoInput: (promoInput) => set({ promoInput }),
       setPromo: (promo) => set({ promo, usedPromos: get().usedPromos }),
       setWhen: (when) => set({ when }),
-      confirmBooking: () => {
+      confirmBooking: (routeDistanceKm, roadDurationMinutes, routePath) => {
         const s = get();
         if (!s.drop) return;
         const place = getPlace(s.pickup.placeId);
         if (!place) return;
-        const km = kmBetween(s.pickup, s.drop);
+        const routePoints = [s.pickup, ...s.stops, s.drop];
+        const previewDistanceKm = routePoints.slice(1).reduce((total, point, index) => total + kmBetween(routePoints[index], point), 0);
+        const km = typeof routeDistanceKm === "number" && Number.isFinite(routeDistanceKm) && routeDistanceKm > 0
+          ? routeDistanceKm
+          : Math.round(previewDistanceKm * 10) / 10;
         const fare = quoteRide(s.vehicle, km, place.kind, s.promo);
+        if (typeof roadDurationMinutes === "number" && Number.isFinite(roadDurationMinutes) && roadDurationMinutes > 0) {
+          fare.minutes = Math.ceil(roadDurationMinutes);
+        }
         if (fare.availability === "unavailable") return;
         const scheduled = s.when !== "now";
         const ride: Ride = {
@@ -424,6 +432,7 @@ export const useRaah = create<RaahState>()(
           messages: [],
           stops: [...s.stops],
           tripPin: String(1000 + Math.floor(Math.random() * 9000)),
+          routePath: routePath?.length ? routePath : undefined,
           womenDriverRequested: s.womenDriverPreference,
         };
         set({
@@ -486,12 +495,12 @@ export const useRaah = create<RaahState>()(
           toast: t(s.lang, "cancelled"),
         });
       },
-      rateRide: (rating, feedback) => {
+      rateRide: (rating, feedback, tipAmount = 0) => {
         const s = get();
         const id = s.selectedRideId;
         if (!id) return;
         set({
-          rides: patchRide(s.rides, id, { rating, feedback }),
+          rides: patchRide(s.rides, id, { rating, feedback, tipAmount }),
           toast: t(s.lang, "ratingThanks"),
           screen: "history",
           stack: [],
@@ -687,7 +696,7 @@ export const useRaah = create<RaahState>()(
       partialize: (s) => {
         // Google Places content is intentionally kept in memory only. Persisting
         // it locally would cache Google place names, addresses and coordinates.
-        const persistedRides = s.rides.filter((ride) => !containsGoogleContent(ride.pickup) && !containsGoogleContent(ride.drop) && !(ride.stops ?? []).some(containsGoogleContent));
+        const persistedRides = s.rides.filter((ride) => !containsGoogleContent(ride.pickup) && !containsGoogleContent(ride.drop) && !(ride.stops ?? []).some(containsGoogleContent)).map(({ routePath: _routePath, ...ride }) => ride);
         const persistedServiceRequests = s.serviceRequests.filter((request) => !containsGoogleContent(request.pickup) && (!request.drop || !containsGoogleContent(request.drop)));
         const persistedRideIds = new Set(persistedRides.map((ride) => ride.id));
         return ({

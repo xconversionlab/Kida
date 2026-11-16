@@ -67,6 +67,24 @@ interface GooglePlacesLibrary {
   AutocompleteSessionToken: new () => object;
 }
 
+interface GoogleRouteResult {
+  distanceMeters?: number;
+  durationMillis?: number;
+  path?: GoogleLatLng[];
+}
+
+interface GoogleRoutesLibrary {
+  Route: {
+    computeRoutes(request: Record<string, unknown>): Promise<{ routes?: GoogleRouteResult[] }>;
+  };
+}
+
+export interface DrivingRoutePreview {
+  distanceKm: number;
+  durationMinutes: number;
+  path: Coordinate[];
+}
+
 interface GoogleGeocodingLibrary {
   Geocoder: new () => {
     geocode(request: { location: Coordinate; language?: string; region?: string }): Promise<{
@@ -98,6 +116,7 @@ export interface GoogleMapsBundle {
   core: GoogleCoreLibrary;
   places: GooglePlacesLibrary;
   geocoding: GoogleGeocodingLibrary;
+  routes: GoogleRoutesLibrary;
 }
 
 export interface GooglePlaceOption {
@@ -148,12 +167,13 @@ export function loadGoogleMaps(): Promise<GoogleMapsBundle> {
       document.head.appendChild(script);
     }).then(async () => {
       if (!window.google?.maps?.importLibrary) throw new Error("Google Maps did not initialise.");
-      const [maps, marker, core, places, geocoding] = await Promise.all([
+      const [maps, marker, core, places, geocoding, routes] = await Promise.all([
         window.google.maps.importLibrary("maps"),
         window.google.maps.importLibrary("marker"),
         window.google.maps.importLibrary("core"),
         window.google.maps.importLibrary("places"),
         window.google.maps.importLibrary("geocoding"),
+        window.google.maps.importLibrary("routes"),
       ]);
       return {
         maps: maps as GoogleMapsLibrary,
@@ -161,6 +181,7 @@ export function loadGoogleMaps(): Promise<GoogleMapsBundle> {
         core: core as GoogleCoreLibrary,
         places: places as GooglePlacesLibrary,
         geocoding: geocoding as GoogleGeocodingLibrary,
+        routes: routes as GoogleRoutesLibrary,
       };
     }).catch((error: unknown) => {
       mapsPromise = null;
@@ -304,6 +325,57 @@ export async function getNearbyGooglePlaces(
       place,
     }];
   });
+}
+
+
+/**
+ * Fetches a road route and traffic-aware ETA for the customer fare preview.
+ * This requires Routes API access on the restricted Google Maps browser key.
+ * The caller must show a straight-line preview state when this cannot run.
+ */
+const drivingRouteCache = new Map<string, { expiresAt: number; request: Promise<DrivingRoutePreview> }>();
+
+export async function getGoogleDrivingRoute(
+  points: Coordinate[],
+  vehicle: "bike" | "auto" | "mini" | "sedan" | "xl",
+): Promise<DrivingRoutePreview> {
+  if (points.length < 2) throw new Error("A pickup and destination are required.");
+  const cacheKey = `${vehicle}:${points.map((point) => `${point.lat.toFixed(6)},${point.lng.toFixed(6)}`).join("|")}`;
+  const cached = drivingRouteCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.request;
+  const request = (async () => {
+  const bundle = await loadGoogleMaps();
+  const request: Record<string, unknown> = {
+    origin: points[0],
+    destination: points[points.length - 1],
+    travelMode: vehicle === "bike" ? "TWO_WHEELER" : "DRIVING",
+    routingPreference: "TRAFFIC_AWARE",
+    departureTime: new Date(),
+    region: "IN",
+    fields: ["distanceMeters", "durationMillis", "path"],
+  };
+  if (points.length > 2) {
+    request.intermediates = points.slice(1, -1).map((location) => ({ location, via: false }));
+  }
+  const response = await bundle.routes.Route.computeRoutes(request);
+  const route = response.routes?.[0];
+  if (!route?.distanceMeters || !route.durationMillis) {
+    throw new Error("Google could not calculate a road route for these locations.");
+  }
+  const path = (route.path ?? []).map(readPoint).filter((point): point is Coordinate => point !== null);
+  return {
+    distanceKm: Math.round((route.distanceMeters / 1000) * 10) / 10,
+    durationMinutes: Math.max(1, Math.ceil(route.durationMillis / 60000)),
+    path,
+  };
+  })();
+  drivingRouteCache.set(cacheKey, { expiresAt: Date.now() + 3 * 60 * 1000, request });
+  try {
+    return await request;
+  } catch (error) {
+    drivingRouteCache.delete(cacheKey);
+    throw error;
+  }
 }
 
 export function googleOptionToSelection(option: GooglePlaceOption): Selection {

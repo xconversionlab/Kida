@@ -5,6 +5,7 @@ import { hasGoogleMapsKey, loadGoogleMaps, type GoogleMapsBundle } from "@/lib/r
 import type { Selection } from "@/lib/raah/types";
 
 type Coordinate = [number, number];
+type MapPoint = { lat: number; lng: number };
 
 interface LeafletLayer {
   addTo(map: LeafletMap): this;
@@ -71,16 +72,21 @@ function loadLeaflet(): Promise<LeafletApi> {
 function LeafletMapView({
   pickup,
   drop,
+  stops = [],
+  routePath,
   className = "h-64",
 }: {
   pickup?: Selection | null;
   drop?: Selection | null;
+  stops?: Selection[];
+  routePath?: MapPoint[];
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const pickupLayerRef = useRef<LeafletLayer | null>(null);
   const dropLayerRef = useRef<LeafletLayer | null>(null);
+  const stopLayersRef = useRef<LeafletLayer[]>([]);
   const routeLayerRef = useRef<LeafletLayer | null>(null);
   const userMarkerRef = useRef<LeafletMarker | null>(null);
   const watchIdRef = useRef<number | null>(null);
@@ -148,6 +154,8 @@ function LeafletMapView({
 
     pickupLayerRef.current?.remove();
     dropLayerRef.current?.remove();
+    stopLayersRef.current.forEach((layer) => layer.remove());
+    stopLayersRef.current = [];
     routeLayerRef.current?.remove();
     pickupLayerRef.current = null;
     dropLayerRef.current = null;
@@ -155,6 +163,19 @@ function LeafletMapView({
 
     const from: Coordinate | null = pickup ? [pickup.lat, pickup.lng] : null;
     const to: Coordinate | null = drop ? [drop.lat, drop.lng] : null;
+    stops.forEach((stop) => {
+      stopLayersRef.current.push(L.circleMarker([stop.lat, stop.lng], {
+        radius: 6,
+        color: "#ffffff",
+        weight: 2,
+        fillColor: "#2878E5",
+        fillOpacity: 1,
+      }).addTo(map));
+    });
+
+    const roadPath: Coordinate[] = routePath?.length
+      ? routePath.map((point) => [point.lat, point.lng])
+      : from && to ? [from, to] : [];
 
     if (from) {
       pickupLayerRef.current = L.circleMarker(from, {
@@ -176,21 +197,22 @@ function LeafletMapView({
       }).addTo(map);
     }
 
-    if (from && to) {
-      routeLayerRef.current = L.polyline([from, to], {
+    if (roadPath.length > 1) {
+      const style: Record<string, unknown> = {
         color: "#D6A900",
         weight: 4,
-        opacity: 0.9,
-        dashArray: "7 8",
+        opacity: 0.92,
         lineCap: "round",
-      }).addTo(map);
-      map.fitBounds([from, to], { padding: [44, 44], maxZoom: 14 });
+      };
+      if (!routePath?.length) style.dashArray = "7 8";
+      routeLayerRef.current = L.polyline(roadPath, style).addTo(map);
+      map.fitBounds(roadPath, { padding: [44, 44], maxZoom: 14 });
     } else if (from || to) {
       map.setView(from ?? to!, 13, { animate: true });
     } else {
       map.setView([22.9734, 78.6569], 5);
     }
-  }, [mapReady, pickup?.lat, pickup?.lng, drop?.lat, drop?.lng]);
+  }, [mapReady, pickup?.lat, pickup?.lng, drop?.lat, drop?.lng, stops.map((point) => `${point.lat},${point.lng}`).join(";"), routePath?.map((point) => `${point.lat},${point.lng}`).join(";")]);
 
   function toggleGps() {
     if (watchIdRef.current !== null) {
@@ -268,7 +290,7 @@ function LeafletMapView({
             : gpsState === "error"
               ? "Location permission unavailable"
               : pickup && drop
-                ? "Dashed line · route preview only"
+                ? routePath?.length ? "Google road route · traffic-aware estimate" : "Dashed line · approximate route only"
                 : "India-wide roads and places"}
       </div>
       {!mapReady && !mapError ? (
@@ -289,6 +311,8 @@ function LeafletMapView({
 export function MapView(props: {
   pickup?: Selection | null;
   drop?: Selection | null;
+  stops?: Selection[];
+  routePath?: MapPoint[];
   className?: string;
 }) {
   return hasGoogleMapsKey ? <GoogleMapView {...props} /> : <LeafletMapView {...props} />;
@@ -297,10 +321,14 @@ export function MapView(props: {
 function GoogleMapView({
   pickup,
   drop,
+  stops = [],
+  routePath,
   className = "h-64",
 }: {
   pickup?: Selection | null;
   drop?: Selection | null;
+  stops?: Selection[];
+  routePath?: MapPoint[];
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -374,6 +402,14 @@ function GoogleMapView({
           label: { text: "P", color: "#171717", fontWeight: "700" },
         }));
       }
+      stops.forEach((stop, index) => {
+        markerRefs.current.push(new marker.Marker({
+          map: mapRef.current,
+          position: { lat: stop.lat, lng: stop.lng },
+          title: `Stop ${index + 1}`,
+          label: { text: String(index + 1), color: "#ffffff", fontWeight: "700" },
+        }));
+      });
       if (to) {
         markerRefs.current.push(new marker.Marker({
           map: mapRef.current,
@@ -383,17 +419,17 @@ function GoogleMapView({
         }));
       }
 
-      if (from && to) {
+      const roadPath = routePath?.length ? routePath : from && to ? [from, to] : [];
+      if (roadPath.length > 1) {
         routeRef.current = new maps.Polyline({
           map: mapRef.current,
-          path: [from, to],
+          path: roadPath,
           strokeColor: "#D6A900",
-          strokeOpacity: 0.9,
+          strokeOpacity: 0.92,
           strokeWeight: 4,
         });
         const bounds = new core.LatLngBounds();
-        bounds.extend(from);
-        bounds.extend(to);
+        roadPath.forEach((point) => bounds.extend(point));
         mapRef.current.fitBounds(bounds, 52);
       } else if (from || to) {
         mapRef.current.setCenter(from ?? to!);
@@ -407,7 +443,7 @@ function GoogleMapView({
     });
 
     return () => { cancelled = true; };
-  }, [mapReady, pickup?.lat, pickup?.lng, drop?.lat, drop?.lng]);
+  }, [mapReady, pickup?.lat, pickup?.lng, drop?.lat, drop?.lng, stops.map((point) => `${point.lat},${point.lng}`).join(";"), routePath?.map((point) => `${point.lat},${point.lng}`).join(";")]);
 
   function toggleGps() {
     if (watchIdRef.current !== null) {
@@ -485,7 +521,7 @@ function GoogleMapView({
         {gpsState === "locating" ? "Locating…" : gpsState === "live" ? "GPS live" : "My location"}
       </button>
       <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] max-w-[72%] rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-medium text-ink shadow-sm">
-        {mapError || (gpsState === "error" ? "Location permission unavailable" : gpsState === "live" ? "Your device location is updating" : pickup && drop ? "Pickup and drop preview" : "Google Maps · India")}
+        {mapError || (gpsState === "error" ? "Location permission unavailable" : gpsState === "live" ? "Your device location is updating" : routePath?.length ? "Google road route · traffic-aware estimate" : pickup && drop ? "Straight-line preview · road route not configured" : "Google Maps · India")}
       </div>
       {!mapReady && !mapError ? (
         <div className="absolute inset-0 z-[900] grid place-items-center bg-[#e9eee8]/90 text-sm font-medium text-ink">Loading Google Maps…</div>

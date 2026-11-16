@@ -39,6 +39,8 @@ export function TrackingScreen() {
         <MapView
           pickup={ride.pickup}
           drop={ride.drop}
+          stops={ride.stops ?? []}
+          routePath={ride.routePath}
           className="h-72"
         />
       </div>
@@ -133,6 +135,7 @@ export function CompleteScreen() {
   const rate = useRaah((s) => s.rateRide);
   const [stars, setStars] = useState(5);
   const [text, setText] = useState("");
+  const [tipAmount, setTipAmount] = useState(0);
   if (!ride) return null;
   return (
     <div className="px-4 py-6">
@@ -142,6 +145,18 @@ export function CompleteScreen() {
       <p className="text-sm text-muted">
         {ride.fare.km} km · {payLabel(useRaah.getState().lang, ride.payment)}
       </p>
+      <div className="mt-5 rounded-3xl border border-line p-3">
+        <p className="font-semibold">Say thanks to your Captain</p>
+        <p className="mt-1 text-sm text-muted">Choose a tip amount for this preview. No money is collected or transferred.</p>
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {[0, 20, 50, 100].map((amount) => (
+            <button key={amount} type="button" aria-pressed={tipAmount === amount} onClick={() => setTipAmount(amount)} className={`h-11 rounded-xl border text-sm font-semibold ${tipAmount === amount ? "border-primary bg-primary-soft" : "border-line"}`}>
+              {amount === 0 ? "No tip" : `₹${amount}`}
+            </button>
+          ))}
+        </div>
+        {tipAmount > 0 ? <p className="mt-3 text-sm font-semibold">Preview total: {inr(ride.fare.total + tipAmount)}</p> : null}
+      </div>
       <p className="mt-6 font-semibold">{copy("rate")}</p>
       <div className="mt-2 flex gap-2">
         {[1, 2, 3, 4, 5].map((n) => (
@@ -162,7 +177,7 @@ export function CompleteScreen() {
         onChange={(event) => setText(event.target.value)}
         placeholder={copy("feedbackPh")}
       />
-      <Btn className="mt-4 w-full" onClick={() => rate(stars, text)}>
+      <Btn className="mt-4 w-full" onClick={() => rate(stars, text, tipAmount)}>
         {copy("done")}
       </Btn>
     </div>
@@ -214,7 +229,7 @@ export function HistoryScreen() {
                 <span className="block truncate text-sm text-muted">{ride.pickup.label}</span>
               </span>
               <span className="text-right">
-                <span className="block font-semibold tabular">{inr(ride.fare.total)}</span>
+                <span className="block font-semibold tabular">{inr(ride.fare.total + (ride.tipAmount ?? 0))}</span>
                 <Pill tone={ride.status === "cancelled" ? "danger" : ride.status === "completed" ? "ok" : "warn"}>{ride.status}</Pill>
               </span>
             </button>
@@ -231,7 +246,7 @@ export function HistoryScreen() {
             {serviceRequests.map((request) => (
               <article key={request.id} className="rounded-2xl border border-line p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-semibold">{request.service === "parcel" ? "Parcel delivery" : request.service === "intercity" ? "Outstation trip" : request.service === "rental" ? "Hourly rental" : request.service === "airport" ? "Airport transfer" : "Pet-friendly ride"}</p>
+                  <p className="font-semibold">{request.service === "parcel" ? "Parcel delivery" : request.service === "intercity" ? "Outstation trip" : request.service === "rental" ? "Hourly rental" : request.service === "airport" ? "Airport transfer" : request.service === "transit" ? "Metro & Transit tickets" : request.service === "shared" ? "Auto Share & Group Ride" : "Pet-friendly ride"}</p>
                   <Pill tone="warn">Saved on device</Pill>
                 </div>
                 <p className="mt-1 text-sm text-muted">{request.pickup.label}{request.drop ? ` → ${request.drop.label}` : ""}</p>
@@ -268,6 +283,7 @@ export function RideDetail() {
           <Row k={copy("tax")} v={inr(ride.fare.tax)} />
           <Row k={copy("discount")} v={inr(ride.fare.discount)} />
           <Row k={copy("total")} v={inr(ride.fare.total)} />
+          {(ride.tipAmount ?? 0) > 0 ? <Row k="Captain tip (preview only)" v={inr(ride.tipAmount ?? 0)} /> : null}
           <p className="mt-2 text-sm text-muted">
             {vehicleLabel(lang, ride.vehicle)} · {payLabel(lang, ride.payment)} · {ride.status}
           </p>

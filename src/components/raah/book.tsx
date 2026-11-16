@@ -1,21 +1,72 @@
 import { useEffect, useState } from "react";
 import { getPlace } from "@/lib/raah/places";
+import { getGoogleDrivingRoute, hasGoogleMapsKey, type DrivingRoutePreview } from "@/lib/raah/googleMaps";
 import { payLabel, promoReason, vehicleLabel } from "@/lib/raah/labels";
 import { inr, kmBetween, quoteRide, resolvePromo, VEHICLES, type PromoResult } from "@/lib/raah/pricing";
 import { useRaah } from "@/lib/raah/store";
 import type { VehicleId } from "@/lib/raah/types";
 import { VehicleArt } from "./art";
+import { MapView } from "./MapView";
 import { Btn, Header, inputClass, Pill, useCopy } from "./ui";
 
 function useTripKm() {
   const pickup = useRaah((s) => s.pickup);
   const drop = useRaah((s) => s.drop);
   const stops = useRaah((s) => s.stops);
+  const vehicle = useRaah((s) => s.vehicle);
   const place = getPlace(pickup.placeId);
+  const points = drop ? [pickup, ...stops, drop] : [];
+  const pointsKey = points.map((point) => `${point.lat.toFixed(6)},${point.lng.toFixed(6)}`).join("|");
+  const [route, setRoute] = useState<DrivingRoutePreview | null>(null);
+  const [routeState, setRouteState] = useState<"loading" | "road" | "approximate">("approximate");
+
+  useEffect(() => {
+    let active = true;
+    setRoute(null);
+    if (points.length < 2 || !hasGoogleMapsKey) {
+      setRouteState("approximate");
+      return () => { active = false; };
+    }
+
+    setRouteState("loading");
+    const requestPoints = pointsKey.split("|").map((value) => {
+      const [lat, lng] = value.split(",").map(Number);
+      return { lat, lng };
+    });
+    void getGoogleDrivingRoute(requestPoints, vehicle)
+      .then((result) => {
+        if (!active) return;
+        setRoute(result);
+        setRouteState("road");
+      })
+      .catch(() => {
+        if (!active) return;
+        setRoute(null);
+        setRouteState("approximate");
+      });
+
+    return () => { active = false; };
+  }, [pointsKey, vehicle]);
+
   if (!drop || !place) return null;
-  const points = [pickup, ...stops, drop];
-  const km = points.slice(1).reduce((total, point, index) => total + kmBetween(points[index], point), 0);
-  return { pickup, drop, stops, place, km: Math.round(km * 10) / 10 };
+  const straightKm = points.slice(1).reduce((total, point, index) => total + kmBetween(points[index], point), 0);
+  const km = route?.distanceKm ?? Math.round(straightKm * 10) / 10;
+  return { pickup, drop, stops, place, km, route, routeState, routePath: route?.path };
+}
+
+function quoteForTrip(vehicle: VehicleId, km: number, kind: Parameters<typeof quoteRide>[2], promo: PromoResult | null, route: DrivingRoutePreview | null) {
+  const quote = quoteRide(vehicle, km, kind, promo);
+  return route ? { ...quote, minutes: route.durationMinutes } : quote;
+}
+
+function RouteAccuracy({ trip }: { trip: { route: DrivingRoutePreview | null; routeState: "loading" | "road" | "approximate"; km: number } }) {
+  if (trip.routeState === "loading") {
+    return <p className="text-xs text-muted">Calculating road distance and traffic-aware ETA…</p>;
+  }
+  if (trip.routeState === "road" && trip.route) {
+    return <p className="text-xs text-muted">Google road route · {trip.km} km · traffic-aware ETA {trip.route.durationMinutes} min</p>;
+  }
+  return <p className="text-xs text-muted">Approximate straight-line distance · actual road distance, ETA and final fare require Google Routes setup</p>;
 }
 
 export function VehiclesScreen() {
@@ -38,8 +89,10 @@ export function VehiclesScreen() {
     <div className="pb-6">
       <Header title={copy("vehicleTitle")} subtitle={`${trip.km} km · ${trip.stops.length} extra stops · ${copy("fareNote")}`} onBack={back} />
       <div className="space-y-3 px-4">
+        <MapView pickup={trip.pickup} drop={trip.drop} stops={trip.stops} routePath={trip.routePath} className="h-44" />
+        <RouteAccuracy trip={trip} />
         {VEHICLES.map((item) => {
-          const fare = quoteRide(item.id, trip.km, trip.place.kind, null);
+          const fare = quoteForTrip(item.id, trip.km, trip.place.kind, null, trip.route);
           const selected = vehicle === item.id;
           const blocked = fare.availability === "unavailable";
           return (
@@ -106,7 +159,7 @@ export function FareScreen() {
   const trip = useTripKm();
   const [note, setNote] = useState("");
   if (!trip) return null;
-  const fare = quoteRide(vehicle, trip.km, trip.place.kind, promo);
+  const fare = quoteForTrip(vehicle, trip.km, trip.place.kind, promo, trip.route);
   const blocked = fare.availability === "unavailable";
   const invalidSchedule = when !== "now" && new Date(when).getTime() <= Date.now();
   function apply() {
@@ -118,7 +171,9 @@ export function FareScreen() {
     <div className="pb-8">
       <Header title={copy("fareDetails")} subtitle={copy("fareNote")} onBack={back} />
       <div className="space-y-3 px-4">
-        <div className="rounded-2xl border border-line p-3">
+        <div className="space-y-2 rounded-2xl border border-line p-3">
+          <MapView pickup={trip.pickup} drop={trip.drop} stops={trip.stops} routePath={trip.routePath} className="h-40" />
+          <RouteAccuracy trip={trip} />
           <p className="text-xs font-semibold text-muted">YOUR ROUTE</p>
           <p className="mt-2 text-sm font-semibold">A · {trip.pickup.label}</p>
           {trip.stops.map((stop,index)=>(
@@ -163,7 +218,7 @@ export function FareScreen() {
             onChange={(event) => setWhen(event.target.value || "now")}
           />
         </label>
-        <Btn className="w-full" disabled={blocked || invalidSchedule} onClick={() => open("confirm")}>
+        <Btn className="w-full" disabled={blocked || invalidSchedule || trip.routeState === "loading"} onClick={() => open("confirm")}>
           {copy("continue")}
         </Btn>
       </div>
@@ -192,17 +247,18 @@ export function ConfirmScreen() {
   const setWomenPreference = useRaah((s) => s.setWomenDriverPreference);
   const back = useRaah((s) => s.back);
   const confirm = useRaah((s) => s.confirmBooking);
+  const trip = useTripKm();
   const place = getPlace(pickup.placeId);
-  if (!drop || !place) return null;
-  const routePoints = [pickup, ...useRaah.getState().stops, drop];
-  const routeKm = routePoints.slice(1).reduce((total, point, index) => total + kmBetween(routePoints[index], point), 0);
-  const fare = quoteRide(vehicle, Math.round(routeKm * 10) / 10, place.kind, useRaah.getState().promo);
+  if (!drop || !place || !trip) return null;
+  const fare = quoteForTrip(vehicle, trip.km, place.kind, useRaah.getState().promo, trip.route);
   return (
     <div className="pb-8">
       <Header title={copy("confirmRide")} subtitle={copy("proto")} onBack={back} />
       <div className="space-y-3 px-4">
+        <MapView pickup={pickup} drop={drop} stops={trip.stops} routePath={trip.routePath} className="h-44" />
+        <RouteAccuracy trip={trip} />
         <Stop label={copy("from")} title={pickup.label} line={pickup.line} />
-        {useRaah.getState().stops.map((stop,index)=><Stop key={stop.landmarkId+"-"+index} label={`Stop ${index+1}`} title={stop.label} line={stop.line}/>)}
+        {trip.stops.map((stop,index)=><Stop key={stop.landmarkId+"-"+index} label={`Stop ${index+1}`} title={stop.label} line={stop.line}/>)}
         <Stop label={copy("to")} title={drop.label} line={drop.line} />
         {(place.kind === "village" || place.kind === "town") && <p className="text-sm text-accent">{copy("villageNote")}</p>}
         <div className="flex items-center gap-3 rounded-3xl border border-line p-3">
@@ -218,7 +274,7 @@ export function ConfirmScreen() {
         <button type="button" aria-pressed={womenPreference} onClick={()=>setWomenPreference(!womenPreference)} className={`flex min-h-14 w-full items-center justify-between rounded-2xl border px-3 text-left ${womenPreference?"border-primary bg-primary-soft":"border-line"}`}>
           <span><span className="block text-sm font-semibold">Request a woman driver</span><span className="block text-xs text-muted">Preference only · subject to availability and launch support</span></span><span className={`h-6 w-11 rounded-full p-1 ${womenPreference?"bg-primary":"bg-line"}`}><span className={`block size-4 rounded-full bg-white ${womenPreference?"ml-5":""}`}/></span>
         </button>
-        <Btn className="w-full" onClick={confirm}>
+        <Btn className="w-full" disabled={trip.routeState === "loading"} onClick={() => confirm(trip.route?.distanceKm, trip.route?.durationMinutes, trip.route?.path)}>
           {when === "now" ? copy("confirmRide") : copy("scheduleTitle")}
         </Btn>
       </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, CarFront, Clock3, Package, PawPrint, Plane, Route, MapPin, ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CarFront, Clock3, Package, PawPrint, Plane, Route, MapPin, ArrowRight, ShieldCheck, Train, Users } from "lucide-react";
 import { useRaah } from "@/lib/raah/store";
 import type { ServiceMode } from "@/lib/raah/types";
 import { Btn, Card, Header, inputClass, Pill } from "./ui";
@@ -16,6 +16,8 @@ const services: {
   { id: "rental", title: "Hourly rentals", subtitle: "Keep a vehicle for a few hours", Icon: Clock3, availability: "preview" },
   { id: "airport", title: "Airport transfer", subtitle: "Plan a pickup or drop to an airport", Icon: Plane, availability: "preview" },
   { id: "pet", title: "Pet-friendly ride", subtitle: "Travel with your companion", Icon: PawPrint, availability: "preview" },
+  { id: "transit", title: "Metro & Transit tickets", subtitle: "Plan metro connections and last-mile travel", Icon: Train, availability: "preview" },
+  { id: "shared", title: "Auto Share & Group Ride", subtitle: "Plan a shared trip with friends or co-riders", Icon: Users, availability: "preview" },
 ];
 
 const labels: Record<Exclude<ServiceMode, "ride">, string> = {
@@ -24,6 +26,8 @@ const labels: Record<Exclude<ServiceMode, "ride">, string> = {
   rental: "Hourly rentals",
   airport: "Airport transfer",
   pet: "Pet-friendly ride",
+  transit: "Metro & Transit tickets",
+  shared: "Auto Share & Group Ride",
 };
 
 export function ServicesScreen() {
@@ -76,6 +80,10 @@ export function ServiceBookingScreen() {
   const [hours,setHours]=useState("4");
   const [flight,setFlight]=useState("");
   const [pet,setPet]=useState("Dog");
+  const [transitTickets,setTransitTickets]=useState("1");
+  const [transitType,setTransitType]=useState("Single journey");
+  const [sharedPassengers,setSharedPassengers]=useState("2");
+  const [splitFare,setSplitFare]=useState(true);
   const title=labels[mode === "ride" ? "intercity" : mode];
 
   function editLocation(target:"pickup"|"drop") {
@@ -97,6 +105,8 @@ export function ServiceBookingScreen() {
     if(mode==="rental") Object.assign(details,{hours});
     if(mode==="airport") Object.assign(details,{flight});
     if(mode==="pet") Object.assign(details,{pet});
+    if(mode==="transit") Object.assign(details,{transitTickets,transitType});
+    if(mode==="shared") Object.assign(details,{sharedPassengers,splitFare:String(splitFare)});
     createRequest({service:mode,pickup,drop:needsDrop?drop:null,scheduledFor:scheduledFor||null,details});
     setToast(`${title} request saved. No service has been dispatched in this preview.`);
     useRaah.getState().replace("history");
@@ -146,6 +156,28 @@ export function ServiceBookingScreen() {
         {mode==="pet" ? (
           <Card><label className="text-sm font-medium">Pet travelling with you<select className={inputClass+" mt-1"} value={pet} onChange={e=>setPet(e.target.value)}><option>Dog</option><option>Cat</option><option>Other small pet</option></select></label><p className="mt-2 text-xs text-muted">Pet-friendly vehicle availability and cleaning policies must be confirmed before launch.</p></Card>
         ) : null}
+        {mode==="shared" ? (
+          <Card>
+            <p className="font-semibold">Shared trip preferences</p>
+            <label className="mt-3 block text-sm">Total passengers<select className={inputClass+" mt-1"} value={sharedPassengers} onChange={e=>setSharedPassengers(e.target.value)}>{[2,3,4,5,6].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
+            <button type="button" aria-pressed={splitFare} onClick={()=>setSplitFare(!splitFare)} className={`mt-3 flex min-h-12 w-full items-center justify-between rounded-xl border px-3 text-left ${splitFare?"border-primary bg-primary-soft":"border-line"}`}>
+              <span><span className="block text-sm font-semibold">Split fare between passengers</span><span className="block text-xs text-muted">Preview preference only</span></span>
+              <span className={`h-6 w-11 rounded-full p-1 ${splitFare?"bg-primary":"bg-line"}`}><span className={`block size-4 rounded-full bg-white ${splitFare?"ml-5":""}`}/></span>
+            </button>
+            <p className="mt-2 text-xs text-muted">Captain matching, shared-seat availability, passenger invitations and payment splitting require the Kida dispatch and payments backend.</p>
+          </Card>
+        ) : null}
+
+        {mode==="transit" ? (
+          <Card>
+            <p className="font-semibold">Metro / transit ticket request</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="text-sm">Tickets<select className={inputClass+" mt-1"} value={transitTickets} onChange={e=>setTransitTickets(e.target.value)}>{[1,2,3,4,5,6].map(n=><option key={n} value={n}>{n}</option>)}</select></label>
+              <label className="text-sm">Ticket type<select className={inputClass+" mt-1"} value={transitType} onChange={e=>setTransitType(e.target.value)}><option>Single journey</option><option>Return journey</option></select></label>
+            </div>
+            <p className="mt-2 text-xs text-muted">This captures the journey and ticket preference only. Metro inventory, live schedules, QR tickets and payment are not connected in this preview.</p>
+          </Card>
+        ) : null}
 
         <label className="block text-sm font-medium text-muted">Preferred date and time (optional)<input type="datetime-local" className={inputClass+" mt-1"} value={scheduledFor} onChange={e=>setScheduledFor(e.target.value)} min={new Date(Date.now()+60000).toISOString().slice(0,16)}/></label>
         {!validSchedule ? <p className="text-sm text-danger">Choose a future date and time.</p> : null}
@@ -153,7 +185,7 @@ export function ServiceBookingScreen() {
           <p className="font-semibold">Request preview</p>
           <p className="mt-1 text-sm text-muted">This saves your selected details on this device for the prototype. It does not book a courier, driver, flight transfer or rental vehicle.</p>
         </Card>
-        <Btn className="w-full" disabled={!valid} onClick={submit}>Save {mode==="parcel"?"parcel":mode==="rental"?"rental":mode==="pet"?"pet ride":"travel"} request</Btn>
+        <Btn className="w-full" disabled={!valid} onClick={submit}>Save {mode==="parcel"?"parcel":mode==="rental"?"rental":mode==="pet"?"pet ride":mode==="transit"?"transit":mode==="shared"?"shared trip":"travel"} request</Btn>
       </div>
     </div>
   );
