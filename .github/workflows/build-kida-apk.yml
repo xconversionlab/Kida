@@ -7,6 +7,9 @@ on:
       - "client-approval/customer-app"
     paths:
       - "android-wrapper/**"
+      - "src/**"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/build-kida-apk.yml"
       - "public/brand/kida-mark.svg"
 
