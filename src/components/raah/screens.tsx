@@ -20,7 +20,6 @@ import {
   SupportScreen,
   TicketScreen,
 } from "./more";
-import { OperatorConsole } from "./Operator";
 import { PlacePicker } from "./PlacePicker";
 import { ChatScreen, CompleteScreen, HistoryScreen, RideDetail, ShareScreen, TrackingScreen } from "./ride";
 import { useCopy } from "./ui";
@@ -91,8 +90,6 @@ export function CustomerScreens() {
       return <ShareScreen />;
     case "account":
       return <AccountScreen />;
-    case "operator":
-      return <OperatorConsole onBack={() => useRaah.getState().back()} />;
     case "notes":
       return <NotesScreen />;
     default:
