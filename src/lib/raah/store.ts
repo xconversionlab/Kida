@@ -55,6 +55,10 @@ function uid(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 7)}${Date.now().toString(36).slice(-3)}`;
 }
 
+function containsGoogleContent(selection: Selection | null | undefined) {
+  return selection?.source === "google" || selection?.landmarkId.startsWith("google:") === true;
+}
+
 function sampleSelection(placeId: string, index: number, source: Selection["source"]) {
   const place = getPlace(placeId);
   if (!place) throw new Error(placeId);
@@ -626,7 +630,12 @@ export const useRaah = create<RaahState>()(
       name: "raah-prototype-v1",
       skipHydration: true,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({
+      partialize: (s) => {
+        // Google Places content is intentionally kept in memory only. Persisting
+        // it locally would cache Google place names, addresses and coordinates.
+        const persistedRides = s.rides.filter((ride) => !containsGoogleContent(ride.pickup) && !containsGoogleContent(ride.drop));
+        const persistedRideIds = new Set(persistedRides.map((ride) => ride.id));
+        return ({
         seenOnboarding: s.seenOnboarding,
         languageChosen: s.languageChosen,
         lang: s.lang,
@@ -635,28 +644,33 @@ export const useRaah = create<RaahState>()(
         name: s.name,
         photo: s.photo,
         screen: s.screen === "splash" ? "home" : s.screen,
-        home: s.home,
-        work: s.work,
-        extras: s.extras,
+        home: s.home && !containsGoogleContent(s.home.selection) ? s.home : undefined,
+        work: s.work && !containsGoogleContent(s.work.selection) ? s.work : undefined,
+        extras: s.extras.filter((item) => !containsGoogleContent(item.selection)),
         emergency: s.emergency,
-        pickup: s.pickup,
-        drop: s.drop,
+        pickup: containsGoogleContent(s.pickup) ? seedPickup : s.pickup,
+        drop: containsGoogleContent(s.drop) ? null : s.drop,
         vehicle: s.vehicle,
         payment: s.payment,
         usedPromos: s.usedPromos,
-        rides: s.rides,
-        activeRideId: s.activeRideId,
-        selectedRideId: s.selectedRideId,
-        recents: s.recents,
+        rides: persistedRides,
+        activeRideId: s.activeRideId && persistedRideIds.has(s.activeRideId) ? s.activeRideId : null,
+        selectedRideId: s.selectedRideId && persistedRideIds.has(s.selectedRideId) ? s.selectedRideId : (persistedRides[0]?.id ?? null),
+        recents: s.recents.filter((item) => !containsGoogleContent(item)),
         simpleMode: s.simpleMode,
         largeText: s.largeText,
         highContrast: s.highContrast,
         voiceOn: s.voiceOn,
         marketing: s.marketing,
         consent: s.consent,
-        desk: s.desk,
+        desk: {
+          ...s.desk,
+          pickup: containsGoogleContent(s.desk.pickup) ? null : s.desk.pickup,
+          drop: containsGoogleContent(s.desk.drop) ? null : s.desk.drop,
+        },
         tickets: s.tickets,
-      }),
+      });
+      },
     },
   ),
 );

@@ -93,7 +93,7 @@ export interface Selection {
   line: string;
   lat: number;
   lng: number;
-  source: "saved" | "recent" | "search" | "map" | "gps" | "operator" | "sample";
+  source: "saved" | "recent" | "search" | "map" | "gps" | "operator" | "sample" | "google";
 }
 
 export interface Quote {

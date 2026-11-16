@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LocateFixed } from "lucide-react";
 import { getPlace } from "@/lib/raah/places";
+import { hasGoogleMapsKey, loadGoogleMaps, type GoogleMapsBundle } from "@/lib/raah/googleMaps";
 import type { Selection } from "@/lib/raah/types";
 
 type Coordinate = [number, number];
@@ -67,7 +68,7 @@ function loadLeaflet(): Promise<LeafletApi> {
   return leafletPromise;
 }
 
-export function MapView({
+function LeafletMapView({
   pickup,
   drop,
   className = "h-64",
@@ -279,6 +280,218 @@ export function MapView({
         <div className="absolute inset-0 z-[900] grid place-items-center bg-[#e9eee8] px-6 text-center text-sm font-medium text-ink">
           Could not load the interactive map. Please check the internet connection and try again.
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+
+export function MapView(props: {
+  pickup?: Selection | null;
+  drop?: Selection | null;
+  className?: string;
+}) {
+  return hasGoogleMapsKey ? <GoogleMapView {...props} /> : <LeafletMapView {...props} />;
+}
+
+function GoogleMapView({
+  pickup,
+  drop,
+  className = "h-64",
+}: {
+  pickup?: Selection | null;
+  drop?: Selection | null;
+  className?: string;
+}) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<InstanceType<GoogleMapsBundle["maps"]["Map"]> | null>(null);
+  const markerRefs = useRef<Array<InstanceType<GoogleMapsBundle["marker"]["Marker"]>>>([]);
+  const routeRef = useRef<InstanceType<GoogleMapsBundle["maps"]["Polyline"]> | null>(null);
+  const userMarkerRef = useRef<InstanceType<GoogleMapsBundle["marker"]["Marker"]> | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState("");
+  const [gpsState, setGpsState] = useState<"off" | "locating" | "live" | "error">("off");
+  const place = getPlace(pickup?.placeId ?? drop?.placeId ?? "");
+
+  useEffect(() => {
+    let cancelled = false;
+    let mapInstance: InstanceType<GoogleMapsBundle["maps"]["Map"]> | null = null;
+
+    loadGoogleMaps()
+      .then(({ maps }) => {
+        const element = hostRef.current;
+        if (cancelled || !element) return;
+        mapInstance = new maps.Map(element, {
+          center: { lat: 22.9734, lng: 78.6569 },
+          zoom: 5,
+          minZoom: 4,
+          maxZoom: 20,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          clickableIcons: true,
+          gestureHandling: "greedy",
+        });
+        mapRef.current = mapInstance;
+        setMapReady(true);
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setMapError(error instanceof Error ? error.message : "Google Maps could not be loaded.");
+      });
+
+    return () => {
+      cancelled = true;
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      markerRefs.current.forEach((marker) => marker.setMap(null));
+      routeRef.current?.setMap(null);
+      userMarkerRef.current?.setMap(null);
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    let cancelled = false;
+
+    void loadGoogleMaps().then(({ maps, marker, core }) => {
+      if (cancelled || !mapRef.current) return;
+      markerRefs.current.forEach((marker) => marker.setMap(null));
+      markerRefs.current = [];
+      routeRef.current?.setMap(null);
+      routeRef.current = null;
+
+      const from = pickup ? { lat: pickup.lat, lng: pickup.lng } : null;
+      const to = drop ? { lat: drop.lat, lng: drop.lng } : null;
+      if (from) {
+        markerRefs.current.push(new marker.Marker({
+          map: mapRef.current,
+          position: from,
+          title: pickup?.label ?? "Pickup",
+          label: { text: "P", color: "#171717", fontWeight: "700" },
+        }));
+      }
+      if (to) {
+        markerRefs.current.push(new marker.Marker({
+          map: mapRef.current,
+          position: to,
+          title: drop?.label ?? "Drop",
+          label: { text: "D", color: "#ffffff", fontWeight: "700" },
+        }));
+      }
+
+      if (from && to) {
+        routeRef.current = new maps.Polyline({
+          map: mapRef.current,
+          path: [from, to],
+          strokeColor: "#D6A900",
+          strokeOpacity: 0.9,
+          strokeWeight: 4,
+        });
+        const bounds = new core.LatLngBounds();
+        bounds.extend(from);
+        bounds.extend(to);
+        mapRef.current.fitBounds(bounds, 52);
+      } else if (from || to) {
+        mapRef.current.setCenter(from ?? to!);
+        mapRef.current.setZoom(14);
+      } else {
+        mapRef.current.setCenter({ lat: 22.9734, lng: 78.6569 });
+        mapRef.current.setZoom(5);
+      }
+    }).catch(() => {
+      if (!cancelled) setMapError("Google Maps could not update this location.");
+    });
+
+    return () => { cancelled = true; };
+  }, [mapReady, pickup?.lat, pickup?.lng, drop?.lat, drop?.lng]);
+
+  function toggleGps() {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+      userMarkerRef.current?.setMap(null);
+      userMarkerRef.current = null;
+      setGpsState("off");
+      return;
+    }
+    if (!navigator.geolocation) {
+      setGpsState("error");
+      return;
+    }
+
+    setGpsState("locating");
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const coordinate = { lat: position.coords.latitude, lng: position.coords.longitude };
+        void loadGoogleMaps().then(({ marker }) => {
+          const map = mapRef.current;
+          if (!map) return;
+          if (userMarkerRef.current) {
+            userMarkerRef.current.setPosition(coordinate);
+          } else {
+            userMarkerRef.current = new marker.Marker({
+              map,
+              position: coordinate,
+              title: "Your live location",
+              icon: {
+                path: "CIRCLE",
+                scale: 8,
+                fillColor: "#2878E5",
+                fillOpacity: 1,
+                strokeColor: "#ffffff",
+                strokeWeight: 3,
+              },
+            });
+          }
+          map.setCenter(coordinate);
+          map.setZoom(16);
+          setGpsState("live");
+        }).catch(() => setGpsState("error"));
+      },
+      () => {
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
+        setGpsState("error");
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    );
+  }
+
+  return (
+    <div className={`kida-map-view kida-live-map relative isolate overflow-hidden rounded-3xl ${className}`}>
+      <div ref={hostRef} className="absolute inset-0 z-0 bg-[#e9eee8]" aria-label="Google map of India" />
+      <div className="pointer-events-none absolute left-3 top-3 z-[1000] flex max-w-[68%] items-center gap-2 rounded-full border border-black/5 bg-white/95 px-3 py-2 text-xs font-semibold text-ink shadow-sm">
+        <span className="relative flex size-2 shrink-0">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-50" />
+          <span className="relative inline-flex size-2 rounded-full bg-emerald-600" />
+        </span>
+        <span className="truncate">{place ? `${place.name}, ${place.state}` : "India · Google Maps"}</span>
+      </div>
+      <button
+        type="button"
+        onClick={toggleGps}
+        disabled={!mapReady}
+        aria-label={gpsState === "live" || gpsState === "locating" ? "Stop live location" : "Show my live location"}
+        aria-pressed={gpsState === "live" || gpsState === "locating"}
+        className="absolute right-3 top-3 z-[1000] inline-flex min-h-10 items-center gap-2 rounded-full border border-black/5 bg-white px-3 text-xs font-semibold text-ink shadow-md disabled:opacity-60"
+      >
+        <LocateFixed className={`size-4 ${gpsState === "live" ? "text-blue-600" : "text-ink"}`} />
+        {gpsState === "locating" ? "Locating…" : gpsState === "live" ? "GPS live" : "My location"}
+      </button>
+      <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] max-w-[72%] rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-medium text-ink shadow-sm">
+        {mapError || (gpsState === "error" ? "Location permission unavailable" : gpsState === "live" ? "Your device location is updating" : pickup && drop ? "Pickup and drop preview" : "Google Maps · India")}
+      </div>
+      {!mapReady && !mapError ? (
+        <div className="absolute inset-0 z-[900] grid place-items-center bg-[#e9eee8]/90 text-sm font-medium text-ink">Loading Google Maps…</div>
+      ) : null}
+      {mapError ? (
+        <div className="absolute inset-0 z-[900] grid place-items-center bg-[#e9eee8] px-6 text-center text-sm font-medium text-ink">{mapError}</div>
       ) : null}
     </div>
   );
