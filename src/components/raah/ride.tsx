@@ -77,10 +77,10 @@ export function TrackingScreen() {
           </div>
         </div>
         <div className="grid grid-cols-4 gap-2">
-          <a href={`tel:${company.supportTel}`} className="grid h-16 place-items-center rounded-2xl bg-paper text-center text-xs font-semibold">
+          <div className="grid h-16 place-items-center rounded-2xl bg-paper text-center text-xs font-semibold opacity-70 cursor-not-allowed" aria-disabled="true" title="Driver contact becomes available after a live dispatch integration">
             <Phone className="size-5" />
             {copy("callDriver")}
-          </a>
+          </div>
           <button type="button" onClick={() => open("chat")} className="grid h-16 place-items-center rounded-2xl bg-paper text-xs font-semibold">
             <MessageCircle className="size-5" />
             {copy("message")}
