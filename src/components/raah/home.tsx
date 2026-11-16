@@ -4,7 +4,7 @@ import { inr, kmBetween, quoteRide } from "@/lib/raah/pricing";
 import { useRaah } from "@/lib/raah/store";
 import type { VehicleId } from "@/lib/raah/types";
 import { vehicleLabel } from "@/lib/raah/labels";
-import { VehicleArt } from "./art";
+import { VehicleArt, Wordmark } from "./art";
 import { MapView } from "./MapView";
 import { Avatar, useCopy } from "./ui";
 
@@ -40,7 +40,7 @@ export function HomeScreen() {
     <div className="rise pb-4">
       <header className="flex items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="font-display text-3xl leading-none">Raah</p>
+          <Wordmark className="text-3xl" />
           <p className="mt-1 text-sm text-muted">
             {copy("hello")}, {name.split(" ")[0]}
           </p>
