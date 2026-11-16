@@ -56,8 +56,8 @@ export function VehicleArt({ id, className = "h-12 w-20" }: { id: VehicleId; cla
 
 export function Wordmark({ className = "" }: { className?: string }) {
   return (
-    <span className={`font-display tracking-tight text-ink ${className}`}>
-      Raah
+    <span className={`inline-flex items-center rounded-xl bg-[#d3d3d1] px-2 py-1 ${className}`}>
+      <img src="/brand/kida-logo.svg" alt="Kida" className="h-[1.15em] w-auto object-contain" />
     </span>
   );
 }
