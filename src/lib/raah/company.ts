@@ -1,23 +1,21 @@
 /**
- * Company identity for the prototype.
- * Every legal identifier below is a PLACEHOLDER.
- * Do not replace these with invented "real" registrations.
- * A future admin console should own this object.
+ * Kida company identity for the client-approval prototype.
+ * Registration, address and support details remain explicit placeholders until
+ * the client supplies verified company information. Never invent legal IDs.
  */
 export const company = {
-  brand: "Raah",
-  legalName: "Raah Mobility Private Limited",
+  brand: "Kida",
+  legalName: "Kida Transportation Services and Roadlines Pvt. Ltd.",
   tagline: "Every road. Every village.",
-  office:
-    "Placeholder only — the registered office will be published after incorporation. Demo city: Bengaluru, Karnataka, India.",
-  cin: "U00000KA2026PTC000000",
-  gstin: "29AAAAA0000A1Z5",
-  supportPhone: "1800-202-7244",
-  supportTel: "+9118002027244",
-  email: "support@raah.example",
-  website: "https://raah.example",
-  grievance: "Placeholder — Grievance Officer, grievance@raah.example",
-  hours: "Daily, 6:00–23:00 IST (prototype desk, not a live call centre)",
+  office: "Registered office address to be supplied by the company before launch.",
+  cin: "Pending — client to provide verified CIN",
+  gstin: "Pending — client to provide verified GSTIN",
+  supportPhone: "Customer support number to be provided",
+  supportTel: "",
+  email: "Customer support email to be provided",
+  website: "Official website to be provided",
+  grievance: "Grievance officer name and contact details to be provided before launch",
+  hours: "Customer support hours to be confirmed by the company",
 } as const;
 
 export const DEMO_OTP = "482913";
