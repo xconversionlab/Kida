@@ -14,6 +14,8 @@ import type {
   SavedPlace,
   Screen,
   Selection,
+  ServiceMode,
+  ServiceRequest,
   Ticket,
   VehicleId,
 } from "./types";
@@ -137,7 +139,7 @@ const initialRides: Ride[] = [
   }),
 ];
 
-export type PlaceTarget = "pickup" | "drop" | "home" | "work" | "extra";
+export type PlaceTarget = "pickup" | "drop" | "stop" | "home" | "work" | "extra";
 
 interface DeskState {
   callId: string | null;
@@ -166,6 +168,11 @@ interface RaahState {
   emergency: EmergencyContact[];
   pickup: Selection;
   drop: Selection | null;
+  stops: Selection[];
+  serviceMode: ServiceMode;
+  serviceRequests: ServiceRequest[];
+  womenDriverPreference: boolean;
+  notificationPrefs: { rides: boolean; safety: boolean; offers: boolean; product: boolean };
   vehicle: VehicleId;
   payment: PayMethod;
   promoInput: string;
@@ -200,7 +207,12 @@ interface RaahState {
   setName: (name: string) => void;
   setPhoto: (photo: string) => void;
   setPlaceTarget: (target: PlaceTarget) => void;
+  setServiceMode: (mode: ServiceMode) => void;
   choose: (selection: Selection) => void;
+  removeStop: (index: number) => void;
+  setWomenDriverPreference: (value: boolean) => void;
+  setNotificationPreference: (key: "rides" | "safety" | "offers" | "product", value: boolean) => void;
+  createServiceRequest: (request: Omit<ServiceRequest, "id" | "createdAt" | "status">) => string;
   setVehicle: (vehicle: VehicleId) => void;
   setPayment: (payment: PayMethod) => void;
   setPromoInput: (value: string) => void;
@@ -268,6 +280,11 @@ export const useRaah = create<RaahState>()(
       emergency: [],
       pickup: seedPickup,
       drop: null,
+      stops: [],
+      serviceMode: "ride",
+      serviceRequests: [],
+      womenDriverPreference: false,
+      notificationPrefs: { rides: true, safety: true, offers: false, product: false },
       vehicle: "auto",
       payment: "upi",
       promoInput: "",
@@ -292,7 +309,7 @@ export const useRaah = create<RaahState>()(
       payFailed: false,
       sosArmed: false,
       onboardStep: 0,
-      replace: (screen) => set({ screen, stack: [] }),
+      replace: (screen) => set(screen === "home" ? { screen, stack: [], serviceMode: "ride", stops: [] } : { screen, stack: [] }),
       open: (screen) => set((s) => ({ stack: [...s.stack, s.screen], screen })),
       back: () =>
         set((s) => {
@@ -300,7 +317,7 @@ export const useRaah = create<RaahState>()(
           const prev = stack.pop() ?? "home";
           return { stack, screen: prev };
         }),
-      tab: (screen) => set({ screen, stack: [] }),
+      tab: (screen) => set(screen === "home" ? { screen, stack: [], serviceMode: "ride", stops: [] } : { screen, stack: [] }),
       setLang: (lang) => set({ lang, languageChosen: true }),
       setPhone: (phone) => set({ phone }),
       verifyOtp: (code) => {
@@ -319,8 +336,23 @@ export const useRaah = create<RaahState>()(
       },
       setPhoto: (photo) => set({ photo }),
       setPlaceTarget: (placeTarget) => set({ placeTarget }),
+      setServiceMode: (serviceMode) => set({ serviceMode, drop: serviceMode === "ride" ? get().drop : null, stops: serviceMode === "ride" ? get().stops : [] }),
       choose: (selection) => {
         const s = get();
+        if (s.placeTarget === "stop") {
+          if (s.stops.length >= 3) {
+            set({ toast: "A ride can have up to three additional stops." });
+            return;
+          }
+          set({ stops: [...s.stops, selection] });
+          get().back();
+          return;
+        }
+        if (s.serviceMode !== "ride" && (s.placeTarget === "pickup" || s.placeTarget === "drop")) {
+          set(s.placeTarget === "pickup" ? { pickup: selection } : { drop: selection });
+          get().replace("serviceBooking");
+          return;
+        }
         if (s.placeTarget === "pickup") {
           set({ pickup: selection });
           get().back();
@@ -348,6 +380,19 @@ export const useRaah = create<RaahState>()(
         if (s.placeTarget === "work") set({ work: saved });
         if (s.placeTarget === "extra") set({ extras: [...get().extras, saved].slice(0, 5) });
         get().back();
+      },
+      removeStop: (index) => set((s) => ({ stops: s.stops.filter((_, i) => i !== index) })),
+      setWomenDriverPreference: (womenDriverPreference) => set({ womenDriverPreference }),
+      setNotificationPreference: (key, value) => set((s) => ({ notificationPrefs: { ...s.notificationPrefs, [key]: value } })),
+      createServiceRequest: (request) => {
+        const item: ServiceRequest = {
+          ...request,
+          id: uid("service"),
+          createdAt: new Date().toISOString(),
+          status: "request_saved_demo",
+        };
+        set((s) => ({ serviceRequests: [item, ...s.serviceRequests], serviceMode: "ride", drop: null, stops: [], toast: "Your request has been saved in this demo. No driver or courier has been dispatched." }));
+        return item.id;
       },
       setVehicle: (vehicle) => set({ vehicle }),
       setPayment: (payment) => set({ payment, payFailed: false }),
@@ -377,6 +422,9 @@ export const useRaah = create<RaahState>()(
           progress: 0,
           source: "app",
           messages: [],
+          stops: [...s.stops],
+          tripPin: String(1000 + Math.floor(Math.random() * 9000)),
+          womenDriverRequested: s.womenDriverPreference,
         };
         set({
           rides: [ride, ...s.rides],
@@ -386,6 +434,7 @@ export const useRaah = create<RaahState>()(
           promo: null,
           promoInput: "",
           when: "now",
+          stops: [],
           screen: scheduled ? "history" : "assigning",
           stack: [],
           toast: t(s.lang, "booked"),
@@ -489,6 +538,11 @@ export const useRaah = create<RaahState>()(
           emergency: [],
           pickup: seedPickup,
           drop: null,
+          stops: [],
+          serviceMode: "ride",
+          serviceRequests: [],
+          womenDriverPreference: false,
+          notificationPrefs: { rides: true, safety: true, offers: false, product: false },
           vehicle: "auto",
           payment: "upi",
           promoInput: "",
@@ -633,7 +687,8 @@ export const useRaah = create<RaahState>()(
       partialize: (s) => {
         // Google Places content is intentionally kept in memory only. Persisting
         // it locally would cache Google place names, addresses and coordinates.
-        const persistedRides = s.rides.filter((ride) => !containsGoogleContent(ride.pickup) && !containsGoogleContent(ride.drop));
+        const persistedRides = s.rides.filter((ride) => !containsGoogleContent(ride.pickup) && !containsGoogleContent(ride.drop) && !(ride.stops ?? []).some(containsGoogleContent));
+        const persistedServiceRequests = s.serviceRequests.filter((request) => !containsGoogleContent(request.pickup) && (!request.drop || !containsGoogleContent(request.drop)));
         const persistedRideIds = new Set(persistedRides.map((ride) => ride.id));
         return ({
         seenOnboarding: s.seenOnboarding,
@@ -650,6 +705,11 @@ export const useRaah = create<RaahState>()(
         emergency: s.emergency,
         pickup: containsGoogleContent(s.pickup) ? seedPickup : s.pickup,
         drop: containsGoogleContent(s.drop) ? null : s.drop,
+        stops: s.stops.filter((item) => !containsGoogleContent(item)),
+        serviceMode: s.serviceMode,
+        serviceRequests: persistedServiceRequests,
+        womenDriverPreference: s.womenDriverPreference,
+        notificationPrefs: s.notificationPrefs,
         vehicle: s.vehicle,
         payment: s.payment,
         usedPromos: s.usedPromos,

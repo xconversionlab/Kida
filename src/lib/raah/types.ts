@@ -29,6 +29,19 @@ export type PayMethod = "upi" | "qr" | "credit" | "debit" | "netbanking" | "cash
 
 export type Availability = "ready" | "limited" | "unavailable";
 
+export type ServiceMode = "ride" | "parcel" | "intercity" | "rental" | "airport" | "pet";
+
+export interface ServiceRequest {
+  id: string;
+  service: Exclude<ServiceMode, "ride">;
+  pickup: Selection;
+  drop: Selection | null;
+  scheduledFor: string | null;
+  details: Record<string, string>;
+  createdAt: string;
+  status: "request_saved_demo";
+}
+
 export type Screen =
   | "splash"
   | "onboarding"
@@ -63,6 +76,11 @@ export type Screen =
   | "account"
   | "operator"
   | "notes"
+  | "services"
+  | "serviceBooking"
+  | "notifications"
+  | "membership"
+  | "rewards"
   | "ticket";
 
 export interface Landmark {
@@ -150,6 +168,9 @@ export interface Ride {
   cancelReason?: string;
   source: "app" | "call";
   messages: ChatMessage[];
+  tripPin?: string;
+  womenDriverRequested?: boolean;
+  stops?: Selection[];
   issue?: string;
   lostItem?: string;
 }

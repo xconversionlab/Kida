@@ -33,7 +33,7 @@ export function AccountScreen() {
           <span>
             <span className="block text-lg font-semibold">{name}</span>
             <span className="text-sm text-muted">+91 {prettyPhone(phone)}</span>
-            <span className="mt-1 block text-xs font-semibold text-primary">{copy("verified")}</span>
+            <span className="mt-1 block text-xs font-semibold text-primary">Preview account · not phone-verified</span>
           </span>
         </button>
         <div className="space-y-2">
@@ -100,15 +100,15 @@ export function ProfileScreen() {
 
   const menu = [
     { label: "Help", hint: `Call ${company.supportPhone}`, icon: HelpCircle, action: () => open("support") },
-    { label: "Parcel – Send Items", hint: "Send a parcel by bike", icon: Package, action: () => setToast("Parcel booking is coming soon.") },
+    { label: "Parcel – Send Items", hint: "Send a parcel by bike", icon: Package, action: () => { useRaah.getState().setServiceMode("parcel"); open("serviceBooking"); } },
     { label: "Payment", hint: "Payment methods", icon: CreditCard, action: () => open("payments") },
     { label: "My Rides", hint: "Your booking history", icon: History, action: () => open("history") },
     { label: "Safety", hint: "Safety tools and emergency contacts", icon: ShieldCheck, action: () => open("safe") },
     { label: "Refer and Earn", hint: "Get ₹50", icon: Gift, action: () => open("offers") },
     { label: "My Rewards", hint: "Offers and rewards", icon: Award, action: () => open("offers") },
-    { label: "Power Pass", hint: "Ride pass · coming soon", icon: Crown, action: () => setToast("Kida Power Pass is coming soon.") },
-    { label: "Kida Coins", hint: "Rewards balance · coming soon", icon: Coins, action: () => setToast("Kida Coins are coming soon.") },
-    { label: "Notifications", hint: "Booking updates", icon: Bell, action: () => setToast("Notifications will appear here when enabled.") },
+    { label: "Power Pass", hint: "Ride pass · coming soon", icon: Crown, action: () => open("membership") },
+    { label: "Kida Coins", hint: "Rewards balance · coming soon", icon: Coins, action: () => open("rewards") },
+    { label: "Notifications", hint: "Booking updates", icon: Bell, action: () => open("notifications") },
     { label: "Claims", hint: "Raise a booking or payment issue", icon: ShieldAlert, action: () => open("ticket") },
     { label: "Settings", hint: "App preferences", icon: Settings, action: () => open("settings") },
   ];
@@ -122,7 +122,7 @@ export function ProfileScreen() {
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold">{name}</p>
             <p className="text-sm text-muted tabular">+91 {prettyPhone(phone)}</p>
-            <p className="mt-1 text-xs font-semibold text-primary">{copy("verified")}</p>
+            <p className="mt-1 text-xs font-semibold text-primary">Preview account · not phone-verified</p>
           </div>
           <label className="text-xs font-semibold text-primary">
             Change photo
@@ -233,6 +233,79 @@ function PlaceRow({ label, value, onPick, onClear }: { label: string; value?: st
   );
 }
 
+export function NotificationsScreen() {
+  const back = useRaah((s) => s.back);
+  const prefs = useRaah((s) => s.notificationPrefs);
+  const setPref = useRaah((s) => s.setNotificationPreference);
+  const rows = [
+    ["rides","Ride updates","Booking status, pickup and trip changes"],
+    ["safety","Safety alerts","Important safety and account notices"],
+    ["offers","Offers and rewards","Coupons and referral announcements"],
+    ["product","Product updates","New services and Kida announcements"],
+  ] as const;
+  return (
+    <div className="pb-8">
+      <Header title="Notifications" subtitle="Choose which updates you want to receive" onBack={back}/>
+      <div className="space-y-2 px-4">
+        {rows.map(([key,title,hint])=>(
+          <button key={key} type="button" aria-pressed={prefs[key]} onClick={()=>setPref(key,!prefs[key])} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl border border-line px-3 py-3 text-left">
+            <span><span className="block font-semibold">{title}</span><span className="text-sm text-muted">{hint}</span></span>
+            <span className={`h-7 w-12 rounded-full p-1 ${prefs[key]?"bg-primary":"bg-line"}`}><span className={`block size-5 rounded-full bg-white ${prefs[key]?"ml-5":""}`}/></span>
+          </button>
+        ))}
+        <Card><p className="font-semibold">Delivery status</p><p className="mt-1 text-sm text-muted">These preferences are saved on this device. Push notifications, SMS and WhatsApp delivery require a notification service and verified account backend.</p></Card>
+      </div>
+    </div>
+  );
+}
+
+export function MembershipScreen() {
+  const back = useRaah((s) => s.back);
+  return (
+    <div className="pb-8">
+      <Header title="Kida Power Pass" subtitle="Membership and ride savings" onBack={back}/>
+      <div className="space-y-3 px-4">
+        <Card>
+          <Pill tone="ok">Current access · Free</Pill>
+          <h2 className="mt-3 font-display text-3xl">Kida Power Pass</h2>
+          <p className="mt-2 text-sm text-muted">A future membership for frequent riders, planned to include ride benefits and member offers.</p>
+        </Card>
+        {[
+          ["Daily Commuter","Benefits for frequent local rides","Coming soon"],
+          ["Monthly Pass","Predictable savings for regular travel","Coming soon"],
+          ["Family Travel","Shared family benefits and trip management","Coming soon"],
+        ].map(([title,hint,status])=>(
+          <div key={title} className="rounded-2xl border border-line p-3"><div className="flex items-center justify-between gap-2"><p className="font-semibold">{title}</p><Pill>{status}</Pill></div><p className="mt-1 text-sm text-muted">{hint}</p></div>
+        ))}
+        <p className="text-xs text-muted">No membership is being sold and no subscription payment can be made in this build. Prices and benefits will be published only after launch terms are approved.</p>
+      </div>
+    </div>
+  );
+}
+
+export function RewardsScreen() {
+  const back = useRaah((s) => s.back);
+  const [message,setMessage] = useState("");
+  async function invite() {
+    const inviteText = `Join me on Kida, the ride booking app. Referral rewards will be announced when the programme launches.`;
+    try {
+      if(navigator.share) await navigator.share({title:"Kida invitation",text:inviteText});
+      else if(navigator.clipboard?.writeText) { await navigator.clipboard.writeText(inviteText); setMessage("Invitation text copied."); }
+      else setMessage("Sharing is not supported on this device.");
+    } catch { setMessage("Sharing cancelled or unavailable."); }
+  }
+  return (
+    <div className="pb-8">
+      <Header title="Rewards & referrals" subtitle="Your Kida rewards" onBack={back}/>
+      <div className="space-y-3 px-4">
+        <Card><p className="text-xs font-semibold text-muted">AVAILABLE KIDA COINS</p><p className="mt-2 font-display text-5xl">0</p><p className="mt-1 text-sm text-muted">Your rewards wallet will appear here after the rewards service is launched.</p></Card>
+        <Card><p className="font-semibold">Refer a friend</p><p className="mt-1 text-sm text-muted">Invite friends to Kida. Referral codes and cash/ride credits will activate after account and rewards services are connected.</p><Btn className="mt-3 w-full" onClick={()=>void invite()}>Invite a friend</Btn>{message?<p className="mt-2 text-sm text-muted">{message}</p>:null}</Card>
+        <Card><p className="font-semibold">Reward eligibility</p><p className="mt-1 text-sm text-muted">No referral reward is being credited in this preview. We will display official rules, expiry and qualifying ride conditions before the programme is enabled.</p></Card>
+      </div>
+    </div>
+  );
+}
+
 export function SettingsScreen() {
   const copy = useCopy();
   const back = useRaah((s) => s.back);
@@ -304,7 +377,7 @@ export function SafeScreen() {
       <div className="space-y-3 px-4">
         <button type="button" onClick={() => open("sos")} className="w-full rounded-3xl bg-danger px-4 py-4 text-left text-primary-ink">
           <span className="block text-2xl font-semibold">{copy("sos")}</span>
-          <span className="text-sm">Two taps. This demo contacts nobody.</span>
+          <span className="text-sm">Call 112 for emergency assistance. Kida does not yet have a staffed SOS desk.</span>
         </button>
         {cards.map(([title, body, screen]) => (
           <button key={title} type="button" onClick={() => open(screen)} className="w-full rounded-3xl border border-line p-4 text-left">
@@ -340,7 +413,9 @@ export function SosScreen() {
     <div>
       <Header title={copy("sosTitle")} subtitle={copy("sosBody")} onBack={back} />
       <div className="space-y-3 px-4">
-        <Pill tone="danger">Not connected to emergency services</Pill>
+        <Pill tone="warn">Emergency calling is initiated by you</Pill>
+        <a href="tel:112" className="flex min-h-14 items-center justify-center rounded-2xl bg-danger px-4 text-center font-semibold text-white">Call India emergency number · 112</a>
+        <a href={`tel:${company.supportTel}`} className="flex min-h-12 items-center justify-center rounded-2xl border border-line px-4 font-semibold">Call Kida support · {company.supportPhone}</a>
         {step === 0 ? (
           <Btn variant="danger" className="w-full" onClick={() => setStep(1)}>
             {copy("sosConfirm")}
@@ -349,7 +424,7 @@ export function SosScreen() {
         {step === 1 && !armed ? (
           <Card>
             <p className="font-semibold">Confirm this is intentional.</p>
-            <p className="mt-1 text-sm text-muted">A second tap stops an accidental SOS. Still nothing is dialled.</p>
+            <p className="mt-1 text-sm text-muted">Confirming here does not dispatch an emergency team. Use the 112 call button above to contact emergency services.</p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <Btn variant="line" onClick={() => setStep(0)}>
                 {copy("cancel")}
@@ -364,9 +439,9 @@ export function SosScreen() {
           <Card>
             <p className="font-semibold">{copy("sosDone")}</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-muted">
-              <li>Would notify {emergency.length ? emergency.map((item) => item.name).join(", ") : "no saved contacts"}.</li>
-              <li>Would open the trip share for those contacts.</li>
-              <li>Would alert a safety desk after that desk exists.</li>
+              <li>Saved contacts: {emergency.length ? emergency.map((item) => `${item.name} (+91 ${item.phone})`).join(", ") : "No emergency contacts added yet"}.</li>
+              <li>Use Share Trip to send your trip details to someone you trust.</li>
+              <li>Call 112 directly if you need emergency services.</li>
             </ul>
             <Btn variant="line" className="mt-3" onClick={() => setArmed(false)}>
               {copy("close")}
@@ -389,11 +464,9 @@ export function CallScreen() {
       <div className="space-y-4 px-4">
         <div className="rounded-3xl bg-accent px-4 py-5 text-accent-ink">
           <p className="text-sm font-semibold">{copy("official")}</p>
-          <p className="mt-1 font-display text-4xl tabular">{copy("numberNote")}</p>
+          <p className="mt-1 font-display text-4xl tabular">{company.supportPhone}</p>
           <p className="mt-2 text-sm">{copy("numberNote")}</p>
-          <div className="mt-4 flex h-12 items-center justify-center rounded-2xl bg-surface font-semibold text-ink opacity-70 cursor-not-allowed" aria-disabled="true" title="Official Kida support number will be added before launch">
-            {copy("callNow")}
-          </div>
+          <a href={`tel:${company.supportTel}`} className="mt-4 flex h-12 items-center justify-center rounded-2xl bg-surface font-semibold text-ink">{copy("callNow")} · {company.supportPhone}</a>
         </div>
         <div>
           <h2 className="font-semibold">{copy("how")}</h2>
@@ -501,10 +574,10 @@ export function OffersScreen() {
 
 const FAQS = [
   ["How do I book without the app?", "Call the number on Book a ride by call. Say your mobile number and a landmark."],
-  ["Does the call share my GPS?", "No. GPS is shared only if you open the location link and tap Allow."],
-  ["Is the fare final?", "The number in this prototype is a sample. A live fare can change with route, waiting and tolls."],
-  ["What does SOS do?", "Here it only shows the intended flow. It does not call the police."],
-  ["Can I pay cash?", "Yes. Cash is a first-class option, especially where digital payments are unfamiliar."],
+  ["Does the call share my GPS?", "No. A phone call does not share GPS. Location is shared only when you open a location prompt and grant permission."],
+  ["Is the fare final?", "The fare shown in this preview is an estimate based on sample per-kilometre rules. Production fares require road routing, city rates, tolls and approved taxes."],
+  ["What does SOS do?", "You can call India emergency services on 112 from the safety screen. Kida does not yet operate an automated SOS dispatch desk."],
+  ["Can I pay cash?", "Cash can be selected in the preview. Online checkout and cash reconciliation are not connected yet."],
 ];
 
 export function SupportScreen() {
@@ -727,7 +800,7 @@ export function NotesScreen() {
         </Card>
         <Card>
           <p className="font-semibold">Simulated, not live</p>
-          <p className="mt-1 text-muted">OTP, fares, drivers, movement on the map, chat, payments, tickets and SOS. The map is a schematic of sample places, not a navigation feed. Device location, if you allow it, only snaps to the nearest sample area.</p>
+          <p className="mt-1 text-muted">OTP, fares, drivers, movement on the map, chat, payments, tickets and SOS. The map uses real map tiles. Google Places search and live address lookup still require a restricted Google API key. Live driver tracking needs the Captain app and dispatch backend.</p>
         </Card>
         <Card>
           <p className="font-semibold">Still to integrate</p>

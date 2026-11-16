@@ -10,9 +10,12 @@ import { Btn, Header, inputClass, Pill, useCopy } from "./ui";
 function useTripKm() {
   const pickup = useRaah((s) => s.pickup);
   const drop = useRaah((s) => s.drop);
+  const stops = useRaah((s) => s.stops);
   const place = getPlace(pickup.placeId);
   if (!drop || !place) return null;
-  return { pickup, drop, place, km: kmBetween(pickup, drop) };
+  const points = [pickup, ...stops, drop];
+  const km = points.slice(1).reduce((total, point, index) => total + kmBetween(points[index], point), 0);
+  return { pickup, drop, stops, place, km: Math.round(km * 10) / 10 };
 }
 
 export function VehiclesScreen() {
@@ -33,7 +36,7 @@ export function VehiclesScreen() {
   }
   return (
     <div className="pb-6">
-      <Header title={copy("vehicleTitle")} subtitle={`${trip.km} km · ${copy("fareNote")}`} onBack={back} />
+      <Header title={copy("vehicleTitle")} subtitle={`${trip.km} km · ${trip.stops.length} extra stops · ${copy("fareNote")}`} onBack={back} />
       <div className="space-y-3 px-4">
         {VEHICLES.map((item) => {
           const fare = quoteRide(item.id, trip.km, trip.place.kind, null);
@@ -89,6 +92,8 @@ export function FareScreen() {
   const lang = useRaah((s) => s.lang);
   const vehicle = useRaah((s) => s.vehicle);
   const payment = useRaah((s) => s.payment);
+  const removeStop = useRaah((s) => s.removeStop);
+  const setTarget = useRaah((s) => s.setPlaceTarget);
   const promoInput = useRaah((s) => s.promoInput);
   const setPromoInput = useRaah((s) => s.setPromoInput);
   const promo = useRaah((s) => s.promo);
@@ -103,6 +108,7 @@ export function FareScreen() {
   if (!trip) return null;
   const fare = quoteRide(vehicle, trip.km, trip.place.kind, promo);
   const blocked = fare.availability === "unavailable";
+  const invalidSchedule = when !== "now" && new Date(when).getTime() <= Date.now();
   function apply() {
     const result: PromoResult = resolvePromo(promoInput, fare.base + fare.distanceCharge, vehicle, trip!.place.kind, used);
     setNote(promoReason(result.reason));
@@ -112,6 +118,20 @@ export function FareScreen() {
     <div className="pb-8">
       <Header title={copy("fareDetails")} subtitle={copy("fareNote")} onBack={back} />
       <div className="space-y-3 px-4">
+        <div className="rounded-2xl border border-line p-3">
+          <p className="text-xs font-semibold text-muted">YOUR ROUTE</p>
+          <p className="mt-2 text-sm font-semibold">A · {trip.pickup.label}</p>
+          {trip.stops.map((stop,index)=>(
+            <div key={stop.landmarkId+"-"+index} className="my-2 flex items-center justify-between gap-2 rounded-xl bg-paper px-2 py-2">
+              <span className="min-w-0 text-sm">Stop {index+1} · {stop.label}</span>
+              <button type="button" onClick={()=>removeStop(index)} className="shrink-0 text-xs font-semibold text-danger">Remove</button>
+            </div>
+          ))}
+          <p className="mt-2 text-sm font-semibold">B · {trip.drop.label}</p>
+          <button type="button" disabled={trip.stops.length>=3} onClick={()=>{setTarget("stop");open("destination");}} className="mt-3 h-10 rounded-full border border-line px-3 text-sm font-semibold text-primary disabled:opacity-50">
+            + Add stop {trip.stops.length}/3
+          </button>
+        </div>
         <Row label={copy("base")} value={inr(fare.base)} />
         <Row label={`${copy("distance")} · ${fare.km} km`} value={inr(fare.distanceCharge)} />
         <Row label={copy("waiting")} value={inr(fare.waiting)} />
@@ -139,10 +159,11 @@ export function FareScreen() {
             type="datetime-local"
             className={`${inputClass} mt-1`}
             value={when === "now" ? "" : when}
+            min={new Date(Date.now() + 60000).toISOString().slice(0,16)}
             onChange={(event) => setWhen(event.target.value || "now")}
           />
         </label>
-        <Btn className="w-full" disabled={blocked} onClick={() => open("confirm")}>
+        <Btn className="w-full" disabled={blocked || invalidSchedule} onClick={() => open("confirm")}>
           {copy("continue")}
         </Btn>
       </div>
@@ -167,16 +188,21 @@ export function ConfirmScreen() {
   const vehicle = useRaah((s) => s.vehicle);
   const payment = useRaah((s) => s.payment);
   const when = useRaah((s) => s.when);
+  const womenPreference = useRaah((s) => s.womenDriverPreference);
+  const setWomenPreference = useRaah((s) => s.setWomenDriverPreference);
   const back = useRaah((s) => s.back);
   const confirm = useRaah((s) => s.confirmBooking);
   const place = getPlace(pickup.placeId);
   if (!drop || !place) return null;
-  const fare = quoteRide(vehicle, kmBetween(pickup, drop), place.kind, useRaah.getState().promo);
+  const routePoints = [pickup, ...useRaah.getState().stops, drop];
+  const routeKm = routePoints.slice(1).reduce((total, point, index) => total + kmBetween(routePoints[index], point), 0);
+  const fare = quoteRide(vehicle, Math.round(routeKm * 10) / 10, place.kind, useRaah.getState().promo);
   return (
     <div className="pb-8">
       <Header title={copy("confirmRide")} subtitle={copy("proto")} onBack={back} />
       <div className="space-y-3 px-4">
         <Stop label={copy("from")} title={pickup.label} line={pickup.line} />
+        {useRaah.getState().stops.map((stop,index)=><Stop key={stop.landmarkId+"-"+index} label={`Stop ${index+1}`} title={stop.label} line={stop.line}/>)}
         <Stop label={copy("to")} title={drop.label} line={drop.line} />
         {(place.kind === "village" || place.kind === "town") && <p className="text-sm text-accent">{copy("villageNote")}</p>}
         <div className="flex items-center gap-3 rounded-3xl border border-line p-3">
@@ -189,6 +215,9 @@ export function ConfirmScreen() {
           </div>
           <p className="font-display text-2xl tabular">{inr(fare.total)}</p>
         </div>
+        <button type="button" aria-pressed={womenPreference} onClick={()=>setWomenPreference(!womenPreference)} className={`flex min-h-14 w-full items-center justify-between rounded-2xl border px-3 text-left ${womenPreference?"border-primary bg-primary-soft":"border-line"}`}>
+          <span><span className="block text-sm font-semibold">Request a woman driver</span><span className="block text-xs text-muted">Preference only · subject to availability and launch support</span></span><span className={`h-6 w-11 rounded-full p-1 ${womenPreference?"bg-primary":"bg-line"}`}><span className={`block size-4 rounded-full bg-white ${womenPreference?"ml-5":""}`}/></span>
+        </button>
         <Btn className="w-full" onClick={confirm}>
           {when === "now" ? copy("confirmRide") : copy("scheduleTitle")}
         </Btn>

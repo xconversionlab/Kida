@@ -68,8 +68,7 @@ export function PlacePicker() {
   const requestNumberRef = useRef(0);
   const autoLocationRequestedRef = useRef(false);
 
-  const title =
-    target === "pickup" ? copy("pickupTitle") : target === "drop" ? copy("dropTitle") : copy("addPlace");
+  const title = target === "pickup" ? copy("pickupTitle") : target === "drop" ? copy("dropTitle") : target === "stop" ? "Add a stop" : copy("addPlace");
 
   const results = useMemo(() => {
     return searchPlaces(query).filter((place) => {

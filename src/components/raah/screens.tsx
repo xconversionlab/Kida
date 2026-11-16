@@ -19,7 +19,11 @@ import {
   SosScreen,
   SupportScreen,
   TicketScreen,
+  NotificationsScreen,
+  MembershipScreen,
+  RewardsScreen,
 } from "./more";
+import { ServiceBookingScreen, ServicesScreen } from "./services";
 import { PlacePicker } from "./PlacePicker";
 import { ChatScreen, CompleteScreen, HistoryScreen, RideDetail, ShareScreen, TrackingScreen } from "./ride";
 import { useCopy } from "./ui";
@@ -39,6 +43,16 @@ export function CustomerScreens() {
       return <OtpScreen />;
     case "name":
       return <NameScreen />;
+    case "services":
+      return <ServicesScreen />;
+    case "serviceBooking":
+      return <ServiceBookingScreen />;
+    case "notifications":
+      return <NotificationsScreen />;
+    case "membership":
+      return <MembershipScreen />;
+    case "rewards":
+      return <RewardsScreen />;
     case "home":
       return <HomeScreen />;
     case "pickup":

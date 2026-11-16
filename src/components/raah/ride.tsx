@@ -72,6 +72,7 @@ export function TrackingScreen() {
             <p className="font-semibold tabular">{ride.driver.plate}</p>
           </div>
         </div>
+        {ride.tripPin ? <div className="rounded-2xl border border-primary bg-primary-soft px-3 py-3"><p className="text-xs font-semibold text-muted">YOUR RIDE PIN</p><p className="mt-1 font-display text-3xl tracking-[0.3em] tabular">{ride.tripPin}</p><p className="mt-1 text-xs text-muted">Share this PIN with the Captain only when you are at the pickup and have verified the vehicle.</p></div> : null}
         <div className="grid grid-cols-4 gap-2">
           <div className="grid h-16 place-items-center rounded-2xl bg-paper text-center text-xs font-semibold opacity-70 cursor-not-allowed" aria-disabled="true" title="Driver contact becomes available after a live dispatch integration">
             <Phone className="size-5" />
@@ -171,6 +172,7 @@ export function CompleteScreen() {
 export function HistoryScreen() {
   const copy = useCopy();
   const rides = useRaah((s) => s.rides);
+  const serviceRequests = useRaah((s) => s.serviceRequests);
   const select = useRaah((s) => s.selectRide);
   const start = useRaah((s) => s.startScheduled);
   const [tab, setTab] = useState<RideStatus | "all">("all");
@@ -202,7 +204,7 @@ export function HistoryScreen() {
         ))}
       </div>
       <div className="mt-3 space-y-2 px-4">
-        {list.length === 0 ? <p className="text-sm text-muted">{copy("emptyRides")}</p> : null}
+        {list.length === 0 && serviceRequests.length === 0 ? <p className="text-sm text-muted">{copy("emptyRides")}</p> : null}
         {list.map((ride) => (
           <article key={ride.id} className="kida-ride-card rounded-3xl border border-line p-3">
             <button type="button" onClick={() => select(ride.id)} className="flex w-full items-center gap-3 text-left">
@@ -223,6 +225,21 @@ export function HistoryScreen() {
             ) : null}
           </article>
         ))}
+        {serviceRequests.length > 0 ? (
+          <section className="space-y-2 pt-3">
+            <h2 className="text-sm font-semibold text-muted">Other service requests</h2>
+            {serviceRequests.map((request) => (
+              <article key={request.id} className="rounded-2xl border border-line p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-semibold">{request.service === "parcel" ? "Parcel delivery" : request.service === "intercity" ? "Outstation trip" : request.service === "rental" ? "Hourly rental" : request.service === "airport" ? "Airport transfer" : "Pet-friendly ride"}</p>
+                  <Pill tone="warn">Saved on device</Pill>
+                </div>
+                <p className="mt-1 text-sm text-muted">{request.pickup.label}{request.drop ? ` → ${request.drop.label}` : ""}</p>
+                <p className="mt-1 text-xs text-muted">{new Date(request.createdAt).toLocaleString("en-IN")} · Request preview only; not dispatched</p>
+              </article>
+            ))}
+          </section>
+        ) : null}
       </div>
     </div>
   );
@@ -243,6 +260,7 @@ export function RideDetail() {
       <div className="space-y-3 px-4">
         <p className="text-sm text-muted">{ride.source === "call" ? "Booked by the call desk · prototype" : "Booked in the app · prototype"}</p>
         <StopLine label={copy("from")} value={ride.pickup.line} />
+        {(ride.stops ?? []).map((stop,index)=><StopLine key={stop.landmarkId+"-"+index} label={`Stop ${index+1}`} value={stop.line}/>) }
         <StopLine label={copy("to")} value={ride.drop.line} />
         <div className="rounded-3xl border border-line p-3">
           <Row k={copy("base")} v={inr(ride.fare.base)} />
@@ -309,11 +327,11 @@ export function ChatScreen() {
     if (!clean) return;
     add(clean, "you");
     setText("");
-    window.setTimeout(() => useRaah.getState().addMessage(copy("driverReply"), "driver"), 600);
   }
   return (
     <div>
-      <Header title={copy("chatTitle")} subtitle={copy("chatSim")} onBack={back} />
+      <Header title={copy("chatTitle")} subtitle="Messaging preview · not delivered to a Captain" onBack={back} />
+      <div className="mx-4 mb-3 rounded-xl bg-primary-soft px-3 py-2 text-xs text-muted">Messages are stored locally in this preview. Live driver chat will activate after dispatch and realtime messaging are connected.</div>
       <div className="space-y-2 px-4">
         {(ride?.messages ?? []).map((message, index) => (
           <p key={index} className={`max-w-xs rounded-2xl px-3 py-2 text-sm ${message.from === "you" ? "ml-auto bg-primary text-primary-ink" : "bg-paper"}`}>
@@ -342,18 +360,48 @@ export function ShareScreen() {
   const copy = useCopy();
   const ride = useRide(true) ?? useSelected();
   const back = useRaah((s) => s.back);
+  const [message,setMessage] = useState("");
+  async function share() {
+    if (!ride) return;
+    const route = `https://www.google.com/maps/dir/?api=1&origin=${ride.pickup.lat},${ride.pickup.lng}&destination=${ride.drop.lat},${ride.drop.lng}&travelmode=driving`;
+    const details = [
+      "Kida trip details",
+      `Driver: ${ride.driver?.name ?? "Not assigned in this preview"}`,
+      `Vehicle: ${ride.driver?.plate ?? "Not assigned"}`,
+      `Pickup: ${ride.pickup.line}`,
+      `Drop: ${ride.drop.line}`,
+      `Trip status: ${ride.status}`,
+      route,
+      "This is a trip details share, not a live tracking link.",
+    ].join("\\n");
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Kida trip details", text: details, url: route });
+        setMessage("Share sheet opened.");
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(details);
+        setMessage("Trip details copied. Share them with someone you trust.");
+      } else {
+        setMessage("Sharing is not supported on this device.");
+      }
+    } catch {
+      setMessage("Sharing was cancelled or unavailable.");
+    }
+  }
   return (
     <div>
-      <Header title={copy("shareTitle")} subtitle={copy("shareBody")} onBack={back} />
-      <div className="px-4">
+      <Header title={copy("shareTitle")} subtitle="Share ride details with someone you trust" onBack={back} />
+      <div className="space-y-3 px-4">
         <div className="kida-card rounded-3xl border border-line p-4">
-          <p className="text-xs font-semibold text-primary">KIDA TRIP PREVIEW</p>
+          <p className="text-xs font-semibold text-primary">KIDA TRIP DETAILS</p>
           <p className="mt-2 font-display text-2xl">{ride?.driver?.name ?? "Driver not assigned"}</p>
-          <p className="tabular text-lg">{ride?.driver?.plate}</p>
+          <p className="tabular text-lg">{ride?.driver?.plate ?? "Vehicle not assigned"}</p>
           <p className="mt-2 text-sm text-muted">{ride?.pickup.line}</p>
           <p className="text-sm text-muted">{ride?.drop.line}</p>
-          <p className="mt-3 text-xs text-muted">Not a public link. Expires when a live trip would end.</p>
+          <p className="mt-3 text-xs text-muted">This shares trip details and a Google Maps route. It is not a live tracking link; realtime trip sharing needs the Kida backend.</p>
         </div>
+        <button type="button" onClick={() => void share()} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary font-semibold text-primary-ink"><Share2 className="size-4"/> Share trip details</button>
+        {message ? <p className="text-sm text-muted">{message}</p> : null}
       </div>
     </div>
   );

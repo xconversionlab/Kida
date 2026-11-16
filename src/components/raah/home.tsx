@@ -1,4 +1,4 @@
-import { Headphones, Shield } from "lucide-react";
+import { Headphones, Shield, Package, Route, Clock3, Plane, ArrowRight } from "lucide-react";
 import { getPlace } from "@/lib/raah/places";
 import { inr, kmBetween, quoteRide } from "@/lib/raah/pricing";
 import { useRaah } from "@/lib/raah/store";
@@ -23,6 +23,7 @@ export function HomeScreen() {
   const tab = useRaah((s) => s.tab);
   const setTarget = useRaah((s) => s.setPlaceTarget);
   const setVehicle = useRaah((s) => s.setVehicle);
+  const setServiceMode = useRaah((s) => s.setServiceMode);
   const place = getPlace(pickup.placeId);
   const live = rides.find((ride) => ride.status === "arriving" || ride.status === "ongoing" || ride.status === "searching");
   const km = drop ? kmBetween(pickup, drop) : null;
@@ -109,6 +110,25 @@ export function HomeScreen() {
             <PhoneMark />
           </button>
         ) : null}
+        <section className="space-y-3 pt-1">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">More ways to travel</h2>
+            <button type="button" onClick={() => open("services")} className="flex items-center gap-1 text-sm font-semibold text-primary">All services <ArrowRight className="size-4"/></button>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {([
+              ["parcel", "Parcel", Package],
+              ["intercity", "Outstation", Route],
+              ["rental", "Rentals", Clock3],
+              ["airport", "Airport", Plane],
+            ] as const).map(([mode,label,Icon]) => (
+              <button key={mode} type="button" onClick={() => { setServiceMode(mode); open("serviceBooking"); }} className="flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border border-line bg-surface p-2 text-center">
+                <span className="grid size-11 place-items-center rounded-2xl bg-primary-soft"><Icon className="size-5"/></span>
+                <span className="text-xs font-semibold">{label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {quick.map((id) => {
             const fare = place && km ? quoteRide(id, km, place.kind, null) : null;
@@ -133,7 +153,7 @@ export function HomeScreen() {
         <button type="button" onClick={() => tab("offers")} className="flex w-full items-center justify-between rounded-2xl bg-accent-soft px-4 py-3 text-left">
           <span>
             <span className="block text-sm font-semibold text-accent">{copy("offers")}</span>
-            <span className="text-sm text-ink">KIDA50 · ₹50 off the first prototype ride</span>
+            <span className="text-sm text-ink">Offers, referrals and ride rewards</span>
           </span>
         </button>
       </div>
