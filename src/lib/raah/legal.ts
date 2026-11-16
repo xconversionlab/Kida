@@ -50,7 +50,7 @@ export const LEGAL: Record<LegalDoc, { title: string; body: string[] }> = {
   grievance: {
     title: "Grievance redressal",
     body: [
-      "Placeholder officer: grievance@raah.example. This inbox is not monitored.",
+      "Placeholder officer: Grievance officer contact details will be published before launch.",
       "A production grievance cell will acknowledge complaints, including safety, payment and lost items, and publish timelines.",
       "Tickets you raise in this prototype stay on this device with the status Open. They are not reviewed by a person.",
     ],
