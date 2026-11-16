@@ -45,7 +45,8 @@ export function VehiclesScreen() {
               type="button"
               disabled={blocked}
               onClick={() => setVehicle(item.id)}
-              className={`flex w-full items-center gap-3 rounded-3xl border p-3 text-left ${selected ? "border-primary bg-primary-soft" : "border-line"} ${blocked ? "opacity-50" : ""}`}
+              aria-pressed={selected}
+              className={`kida-vehicle-option flex w-full items-center gap-3 rounded-3xl border p-3 text-left ${selected ? "border-primary bg-primary-soft" : "border-line"} ${blocked ? "opacity-50" : ""}`}
             >
               <span className="grid size-16 place-items-center rounded-2xl bg-paper text-ink">
                 <VehicleArt id={item.id} />

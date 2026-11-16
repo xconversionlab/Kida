@@ -45,11 +45,11 @@ function Stage() {
     document.documentElement.dataset.type = large ? "large" : "base";
   }, [contrast, large]);
   return (
-    <main className="min-h-dvh bg-paper text-ink lg:flex lg:justify-center lg:p-6">
+    <main className="kida-stage min-h-dvh bg-paper text-ink lg:flex lg:justify-center lg:p-6">
       <div
         data-contrast={contrast ? "high" : "normal"}
         data-type={large ? "large" : "base"}
-        className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-surface shadow-sm lg:h-[calc(100dvh-3rem)] lg:min-h-0 lg:overflow-hidden lg:rounded-3xl lg:border lg:border-line"
+        className="kida-app-shell mx-auto flex min-h-dvh w-full max-w-md flex-col bg-surface shadow-sm lg:h-[calc(100dvh-3rem)] lg:min-h-0 lg:overflow-hidden lg:rounded-3xl lg:border lg:border-line"
       >
         <ProtoChrome />
         <div className="min-h-0 flex-1 overflow-y-auto">

@@ -100,7 +100,7 @@ export function PlacePicker() {
                   key={item.id}
                   type="button"
                   onClick={() => choose(item.selection)}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-line px-3 py-3 text-left"
+                  className="kida-location-card flex w-full items-center gap-3 rounded-2xl border border-line px-3 py-3 text-left"
                 >
                   <MapPin className="size-5 text-primary" />
                   <span>
@@ -121,7 +121,7 @@ export function PlacePicker() {
                   key={item.landmarkId}
                   type="button"
                   onClick={() => choose({ ...item, source: "recent" })}
-                  className="max-w-56 shrink-0 rounded-2xl bg-paper px-3 py-3 text-left"
+                  className="kida-location-card max-w-56 shrink-0 rounded-2xl bg-paper px-3 py-3 text-left"
                 >
                   <span className="block font-semibold">{item.label}</span>
                   <span className="block text-sm text-muted">{item.line}</span>

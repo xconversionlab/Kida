@@ -28,7 +28,7 @@ export function Btn({
   return (
     <button
       className={cn(
-        "inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-base font-semibold transition active:scale-[0.99] disabled:opacity-45",
+        "kida-btn inline-flex h-12 items-center justify-center gap-2 rounded-2xl px-4 text-base font-semibold transition disabled:opacity-45",
         variants[variant],
         className,
       )}
@@ -52,7 +52,7 @@ export function Header({
   right?: ReactNode;
 }) {
   return (
-    <header className="flex items-start gap-2 px-4 py-3">
+    <header className="kida-page-header flex items-start gap-2">
       {onBack ? (
         <button
           type="button"
@@ -64,8 +64,8 @@ export function Header({
         </button>
       ) : null}
       <div className="min-w-0 flex-1">
-        <h1 className="font-display text-3xl leading-tight text-ink">{title}</h1>
-        {subtitle ? <p className="mt-1 text-sm leading-relaxed text-muted">{subtitle}</p> : null}
+        <h1 className="kida-page-title font-display text-3xl text-ink">{title}</h1>
+        {subtitle ? <p className="kida-page-subtitle mt-1 text-sm leading-relaxed text-muted">{subtitle}</p> : null}
       </div>
       {right}
     </header>
@@ -80,7 +80,7 @@ export function Avatar({ name, photo, className }: { name: string; photo?: strin
   return (
     <span
       className={cn(
-        "grid size-11 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-ink",
+        "kida-avatar grid size-11 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-ink",
         className,
       )}
       aria-hidden
@@ -105,14 +105,14 @@ export function Pill({
     line: "bg-paper text-muted",
   };
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", tones[tone])}>
+    <span className={cn("kida-pill inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", tones[tone])}>
       {children}
     </span>
   );
 }
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("rounded-3xl border border-line bg-surface p-4", className)}>{children}</div>;
+  return <div className={cn("kida-card rounded-3xl border border-line bg-surface p-4", className)}>{children}</div>;
 }
 
 export function Field({
@@ -131,7 +131,7 @@ export function Field({
 }
 
 export const inputClass =
-  "h-12 w-full rounded-2xl border border-line bg-paper px-3 text-base text-ink outline-none ring-primary focus:ring-2";
+  "kida-input h-12 w-full rounded-2xl border border-line bg-paper px-3 text-base text-ink outline-none ring-primary focus:ring-2";
 
 export function prettyPhone(digits: string) {
   const clean = digits.replace(/\D/g, "").slice(-10);

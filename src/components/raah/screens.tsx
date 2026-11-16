@@ -112,12 +112,13 @@ export function TabBar() {
   ];
   if (!TABS.includes(screen)) return null;
   return (
-    <nav className="grid grid-cols-5 border-t border-line bg-surface px-1 py-1">
+    <nav className="kida-tabbar grid grid-cols-5 border-t border-line bg-surface px-1 py-1">
       {items.map((item) => {
         const Icon = item.icon;
         const on = screen === item.id;
         return (
-          <button key={item.id} type="button" onClick={() => tab(item.id)} className={`flex h-14 flex-col items-center justify-center gap-0.5 text-xs font-semibold ${on ? "text-primary" : "text-muted"}`}>
+          <button key={item.id} type="button" onClick={() => tab(item.id)} aria-current={on ? "page" : undefined}
+            className={`kida-tab-button flex flex-col items-center justify-center gap-0.5 font-semibold ${on ? "text-primary" : "text-muted"}`}>
             <Icon className="size-5" />
             {item.label}
           </button>
@@ -135,7 +136,7 @@ export function ProtoChrome() {
   const clear = useRaah((s) => s.clearToast);
   return (
     <>
-      <p className="bg-ink px-3 py-1.5 text-center text-xs font-medium text-surface">{copy("proto")}</p>
+      <p className="kida-proto-banner bg-ink px-3 text-center text-xs font-semibold text-surface">{copy("proto")}</p>
       {consent === "link_sent" ? (
         <button type="button" onClick={() => open("consent")} className="w-full bg-accent px-3 py-2 text-left text-sm font-semibold text-accent-ink">
           {copy("linkWaiting")}

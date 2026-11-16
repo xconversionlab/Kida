@@ -62,7 +62,7 @@ export function TrackingScreen() {
         <div className="h-2 overflow-hidden rounded-full bg-paper">
           <div className="h-full bg-primary" style={{ width: `${Math.round(ride.progress * 100)}%` }} />
         </div>
-        <div className="flex items-center gap-3 rounded-3xl border border-line p-3">
+        <div className="kida-card flex items-center gap-3 rounded-3xl border border-line p-3">
           <Avatar name={ride.driver.name} className="size-14" />
           <div className="min-w-0 flex-1">
             <p className="font-semibold">{ride.driver.name}</p>
@@ -208,7 +208,7 @@ export function HistoryScreen() {
       <div className="mt-3 space-y-2 px-4">
         {list.length === 0 ? <p className="text-sm text-muted">{copy("emptyRides")}</p> : null}
         {list.map((ride) => (
-          <article key={ride.id} className="rounded-3xl border border-line p-3">
+          <article key={ride.id} className="kida-ride-card rounded-3xl border border-line p-3">
             <button type="button" onClick={() => select(ride.id)} className="flex w-full items-center gap-3 text-left">
               <VehicleArt id={ride.vehicle} className="h-10 w-16" />
               <span className="min-w-0 flex-1">
@@ -350,7 +350,7 @@ export function ShareScreen() {
     <div>
       <Header title={copy("shareTitle")} subtitle={copy("shareBody")} onBack={back} />
       <div className="px-4">
-        <div className="rounded-3xl border border-line p-4">
+        <div className="kida-card rounded-3xl border border-line p-4">
           <p className="text-xs font-semibold text-primary">KIDA TRIP PREVIEW</p>
           <p className="mt-2 font-display text-2xl">{ride?.driver?.name ?? "Driver not assigned"}</p>
           <p className="tabular text-lg">{ride?.driver?.plate}</p>

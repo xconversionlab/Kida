@@ -27,7 +27,7 @@ export function OperatorConsole({ onBack }: { onBack?: () => void }) {
   const blocked = !desk.pickup || !desk.drop || !fare || fare.availability === "unavailable";
 
   return (
-    <section className="flex h-full min-h-0 flex-col bg-paper text-ink">
+    <section className="kida-operator-screen flex h-full min-h-0 flex-col text-ink">
       <header className="flex items-start justify-between gap-3 border-b border-line px-4 py-4">
         <div>
           <p className="text-xs font-semibold tracking-wide text-primary">RAAH DESK</p>
@@ -48,7 +48,7 @@ export function OperatorConsole({ onBack }: { onBack?: () => void }) {
               key={call.id}
               type="button"
               onClick={() => loadCall(call)}
-              className={`w-full rounded-2xl border p-3 text-left ${desk.callId === call.id ? "border-primary bg-surface" : "border-line bg-surface"}`}
+              className={`kida-location-card w-full rounded-2xl border p-3 text-left ${desk.callId === call.id ? "border-primary bg-surface" : "border-line bg-surface"}`}
             >
               <span className="block font-semibold">{call.name}</span>
               <span className="block text-sm tabular text-muted">+91 {call.phone}</span>

@@ -27,7 +27,7 @@ export function AccountScreen() {
     <div className="pb-4">
       <Header title={copy("account")} />
       <div className="px-4">
-        <button type="button" onClick={() => open("profile")} className="mb-4 flex w-full items-center gap-3 rounded-3xl bg-paper p-3 text-left">
+        <button type="button" onClick={() => open("profile")} className="kida-account-card mb-4 flex w-full items-center gap-3 rounded-3xl bg-paper p-3 text-left">
           <Avatar name={name} photo={photo} className="size-14" />
           <span>
             <span className="block text-lg font-semibold">{name}</span>
@@ -37,7 +37,7 @@ export function AccountScreen() {
         </button>
         <div className="space-y-2">
           {items.map((item) => (
-            <button key={item.screen} type="button" onClick={() => open(item.screen)} className="flex h-12 w-full items-center justify-between rounded-2xl border border-line px-3 text-left font-medium">
+            <button key={item.screen} type="button" onClick={() => open(item.screen)} className="kida-location-card flex h-12 w-full items-center justify-between rounded-2xl border border-line px-3 text-left font-medium">
               {item.label}
               <span className="text-muted">›</span>
             </button>
@@ -222,7 +222,7 @@ export function SettingsScreen() {
             type="button"
             aria-pressed={on}
             onClick={() => toggle(key)}
-            className="flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl border border-line px-3 py-3 text-left"
+            className="kida-location-card flex min-h-16 w-full items-center justify-between gap-3 rounded-2xl border border-line px-3 py-3 text-left"
           >
             <span>
               <span className="block font-semibold">{label}</span>
@@ -647,7 +647,7 @@ export function CompanyScreen() {
           <p className="mt-2 text-sm text-muted">{company.grievance}</p>
         </Card>
         {rows.map(([id, label]) => (
-          <button key={id} type="button" onClick={() => setLegal(id)} className="flex h-12 w-full items-center justify-between rounded-2xl border border-line px-3 text-left font-medium">
+          <button key={id} type="button" onClick={() => setLegal(id)} className="kida-location-card flex h-12 w-full items-center justify-between rounded-2xl border border-line px-3 text-left font-medium">
             {label}
             <span className="text-muted">›</span>
           </button>

@@ -45,7 +45,7 @@ export function MapView({
   const routeD = to ? `M ${from.x} ${from.y} Q ${(from.x + to.x) / 2} ${Math.min(from.y, to.y) - 8} ${to.x} ${to.y}` : "";
 
   return (
-    <div className={`relative overflow-hidden rounded-3xl bg-map ${className}`}>
+    <div className={`kida-map-view relative overflow-hidden rounded-3xl bg-map ${className}`}>
       <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
         <ellipse cx="22" cy="24" rx="18" ry="10" fill="var(--color-park)" />
         <path d="M0 78 C 20 70, 40 88, 70 76 S 100 84, 100 90 L 100 100 L 0 100 Z" fill="var(--color-water)" />

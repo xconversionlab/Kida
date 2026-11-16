@@ -37,8 +37,8 @@ export function HomeScreen() {
   }
 
   return (
-    <div className="rise pb-4">
-      <header className="flex items-center gap-3 px-4 py-3">
+    <div className="kida-home-screen rise pb-4">
+      <header className="kida-home-header flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <Wordmark className="text-3xl" />
           <p className="mt-1 text-sm text-muted">
@@ -79,11 +79,11 @@ export function HomeScreen() {
         ) : null}
         {simple ? (
           <>
-            <button type="button" onClick={() => open("call")} className="min-h-16 w-full rounded-3xl bg-accent px-4 py-4 text-left text-accent-ink">
+            <button type="button" onClick={() => open("call")} className="kida-feature-card min-h-16 w-full rounded-3xl bg-accent px-4 py-4 text-left text-accent-ink">
               <span className="block text-xl font-semibold">{copy("callCta")}</span>
               <span className="text-sm">{copy("callSub")}</span>
             </button>
-            <button type="button" onClick={goDrop} className="min-h-16 w-full rounded-3xl bg-primary px-4 py-4 text-left text-primary-ink">
+            <button type="button" onClick={goDrop} className="kida-feature-card min-h-16 w-full rounded-3xl bg-primary px-4 py-4 text-left text-primary-ink">
               <span className="block text-xl font-semibold">{copy("bookPhone")}</span>
               <span className="text-sm">{copy("whereTo")}</span>
             </button>

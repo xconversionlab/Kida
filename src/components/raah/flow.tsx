@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Phone, ShieldCheck, Spline } from "lucide-react";
+import { Check, Phone, ShieldCheck, Spline } from "lucide-react";
 import { DEMO_OTP } from "@/lib/raah/company";
 import { LANGUAGES } from "@/lib/raah/i18n";
 import { useRaah } from "@/lib/raah/store";
@@ -93,16 +93,22 @@ export function LanguageScreen() {
   return (
     <div className="pb-6">
       <Header title={copy("langTitle")} subtitle={copy("langSub")} onBack={stack.length ? back : undefined} />
-      <div className="grid grid-cols-2 gap-2 px-4">
+      <div className="grid grid-cols-2 gap-2.5 px-4">
         {LANGUAGES.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setLang(item.id)}
-            className={`min-h-16 rounded-2xl border px-3 py-3 text-left ${lang === item.id ? "border-primary bg-primary-soft" : "border-line bg-surface"}`}
+            aria-pressed={lang === item.id}
+            className={`kida-language-option flex items-center justify-between gap-2 border px-3.5 py-3 text-left ${lang === item.id ? "border-primary bg-primary-soft" : "border-line bg-surface"}`}
           >
-            <span className="block text-lg font-semibold">{item.native}</span>
-            <span className="text-sm text-muted">{item.english}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-lg font-semibold">{item.native}</span>
+              <span className="mt-0.5 block text-sm text-muted">{item.english}</span>
+            </span>
+            <span className="kida-language-check" aria-hidden="true">
+              {lang === item.id ? <Check className="size-3.5" strokeWidth={3} /> : null}
+            </span>
           </button>
         ))}
       </div>
@@ -123,10 +129,10 @@ export function PhoneScreen() {
   const [error, setError] = useState("");
   return (
     <div className="px-4 py-6">
-      <p className="font-display text-4xl text-ink">Kida</p>
+      <p className="font-display text-4xl tracking-tight text-ink">Kida</p>
       <h1 className="mt-6 font-display text-3xl">{copy("phoneTitle")}</h1>
       <p className="mt-2 text-sm text-muted">{copy("phoneSub")}</p>
-      <label className="mt-6 flex h-14 items-center gap-3 rounded-2xl border border-line bg-paper px-3">
+      <label className="kida-input mt-6 flex h-14 items-center gap-3 rounded-2xl border border-line bg-paper px-4">
         <span className="font-semibold">+91</span>
         <input
           inputMode="numeric"

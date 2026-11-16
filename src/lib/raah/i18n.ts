@@ -3,7 +3,14 @@ import type { Lang } from "./types";
 export const LANGUAGES: { id: Lang; native: string; english: string }[] = [
   { id: "en", native: "English", english: "English" },
   { id: "hi", native: "हिन्दी", english: "Hindi" },
+  { id: "bn", native: "বাংলা", english: "Bengali" },
+  { id: "te", native: "తెలుగు", english: "Telugu" },
   { id: "mr", native: "मराठी", english: "Marathi" },
+  { id: "ta", native: "தமிழ்", english: "Tamil" },
+  { id: "gu", native: "ગુજરાતી", english: "Gujarati" },
+  { id: "kn", native: "ಕನ್ನಡ", english: "Kannada" },
+  { id: "ml", native: "മലയാളം", english: "Malayalam" },
+  { id: "pa", native: "ਪੰਜਾਬੀ", english: "Punjabi" },
 ];
 
 const en = {

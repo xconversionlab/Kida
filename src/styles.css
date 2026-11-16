@@ -111,3 +111,46 @@ html[data-type="large"] {
     animation: none;
   }
 }
+
+
+/* Kida customer-app visual refinement */
+:root { color-scheme: light; font-synthesis: none; }
+html, body { min-height: 100%; }
+body { margin: 0; overscroll-behavior-y: none; }
+button:not(:disabled), [role="button"]:not(:disabled) {
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease, opacity 160ms ease;
+}
+button:focus-visible, [role="button"]:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-primary) 72%, white);
+  outline-offset: 2px;
+}
+.kida-stage { min-height: 100dvh; }
+.kida-app-shell { background: var(--color-surface); box-shadow: 0 28px 72px -42px rgb(23 23 23 / 22%), 0 3px 12px rgb(23 23 23 / 4%); }
+.kida-proto-banner { min-height: 2rem; padding-top: max(0.4rem, env(safe-area-inset-top)); padding-bottom: 0.4rem; letter-spacing: 0.01em; }
+.kida-page-header { padding: 1.15rem 1rem 0.9rem; }
+.kida-page-title { letter-spacing: -0.035em; line-height: 1.12; }
+.kida-page-subtitle { max-width: 38rem; line-height: 1.55; }
+.kida-btn { min-height: 3.15rem; border-radius: 1.05rem; letter-spacing: -0.012em; box-shadow: 0 2px 0 rgb(23 23 23 / 5%); }
+.kida-btn:not(:disabled):active { transform: translateY(1px) scale(0.99); box-shadow: none; }
+.kida-card { border-color: var(--color-line); border-radius: 1.35rem; background: var(--color-surface); box-shadow: 0 8px 26px -24px rgb(23 23 23 / 30%); }
+.kida-input { min-height: 3.35rem; border-color: var(--color-line); background: #fffefa; box-shadow: inset 0 1px 1px rgb(23 23 23 / 2%); transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease; }
+.kida-input:focus { border-color: color-mix(in srgb, var(--color-primary) 70%, #a98700); background: #fff; box-shadow: 0 0 0 3px rgb(245 197 24 / 18%); }
+.kida-language-option { min-height: 5.35rem; border-radius: 1.15rem; background: var(--color-surface); box-shadow: 0 2px 8px rgb(23 23 23 / 2%); }
+.kida-language-option[aria-pressed="true"] { border-color: var(--color-primary); background: var(--color-primary-soft); box-shadow: inset 0 0 0 1px var(--color-primary), 0 6px 18px -16px rgb(23 23 23 / 28%); }
+.kida-language-option:not([aria-pressed="true"]):hover { border-color: color-mix(in srgb, var(--color-primary) 55%, var(--color-line)); }
+.kida-language-check { display: grid; width: 1.45rem; height: 1.45rem; flex: 0 0 auto; place-items: center; border: 1px solid var(--color-line); border-radius: 999px; color: transparent; background: var(--color-surface); }
+.kida-language-option[aria-pressed="true"] .kida-language-check { border-color: var(--color-ink); color: var(--color-ink); background: var(--color-primary); }
+.kida-tabbar { padding-top: 0.45rem; padding-bottom: max(0.4rem, env(safe-area-inset-bottom)); border-color: var(--color-line); background: rgb(255 255 255 / 96%); box-shadow: 0 -8px 28px -26px rgb(23 23 23 / 28%); backdrop-filter: blur(14px); }
+.kida-tab-button { min-height: 3.35rem; border-radius: 0.9rem; font-size: 0.7rem; }
+.kida-tab-button[aria-current="page"] { background: var(--color-primary-soft); color: var(--color-ink); }
+.kida-map-view { border: 1px solid rgb(23 23 23 / 6%); border-radius: 1.35rem; box-shadow: 0 8px 26px -24px rgb(23 23 23 / 36%); }
+.kida-location-card, .kida-vehicle-option, .kida-ride-card { border-radius: 1.15rem; transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
+.kida-location-card:hover, .kida-vehicle-option:hover:not(:disabled), .kida-ride-card:hover { border-color: color-mix(in srgb, var(--color-primary) 58%, var(--color-line)); box-shadow: 0 8px 22px -20px rgb(23 23 23 / 35%); }
+.kida-vehicle-option[aria-pressed="true"] { border-color: var(--color-primary); box-shadow: inset 0 0 0 1px var(--color-primary); }
+.kida-home-header { padding: 1.1rem 1rem 0.75rem; }
+.kida-section-label { letter-spacing: 0.065em; text-transform: uppercase; font-size: 0.68rem; font-weight: 700; }
+.kida-panel { border: 1px solid var(--color-line); border-radius: 1.15rem; background: var(--color-surface); box-shadow: 0 6px 22px -22px rgb(23 23 23 / 30%); }
+.kida-operator-screen { background: var(--color-paper); }
+@media (hover: none) { .kida-location-card:hover, .kida-vehicle-option:hover:not(:disabled), .kida-ride-card:hover { box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { button:not(:disabled), [role="button"]:not(:disabled) { transition: none; } }
