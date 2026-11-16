@@ -350,7 +350,7 @@ export function CallScreen() {
       <div className="space-y-4 px-4">
         <div className="rounded-3xl bg-accent px-4 py-5 text-accent-ink">
           <p className="text-sm font-semibold">{copy("official")}</p>
-          <p className="mt-1 font-display text-4xl tabular">{company.supportPhone}</p>
+          <p className="mt-1 font-display text-4xl tabular">{copy("numberNote")}</p>
           <p className="mt-2 text-sm">{copy("numberNote")}</p>
           <div className="mt-4 flex h-12 items-center justify-center rounded-2xl bg-surface font-semibold text-ink opacity-70 cursor-not-allowed" aria-disabled="true" title="Official Kida support number will be added before launch">
             {copy("callNow")}
@@ -479,7 +479,7 @@ export function SupportScreen() {
       <div className="space-y-3 px-4">
         <div className="block rounded-3xl bg-primary px-4 py-4 text-primary-ink opacity-70 cursor-not-allowed" aria-disabled="true" title="Official Kida support number will be added before launch">
           <span className="block text-sm">{copy("callNow")}</span>
-          <span className="font-display text-3xl tabular">{company.supportPhone}</span>
+          <span className="font-display text-3xl tabular">{copy("numberNote")}</span>
           <span className="mt-1 block text-sm">{company.hours}</span>
         </div>
         <Card>
@@ -560,7 +560,6 @@ export function PaymentsScreen() {
     <div className="pb-6">
       <Header title={copy("payments")} subtitle={copy("paySecure")} onBack={back} />
       <div className="space-y-2 px-4">
-        <p className="rounded-2xl border border-line bg-primary-soft px-3 py-3 text-sm text-ink">Prototype only: no payment is processed. A licensed payment gateway and secure backend are required before launch.</p>
         {PAY_METHODS.map((method) => (
           <button
             key={method}
