@@ -22,8 +22,6 @@ export function AccountScreen() {
     { label: copy("supportTitle"), screen: "support" },
     { label: copy("about"), screen: "company" },
     { label: copy("settings"), screen: "settings" },
-    { label: copy("deskDemo"), screen: "operator" },
-    { label: copy("review"), screen: "notes" },
   ];
   return (
     <div className="pb-4">
