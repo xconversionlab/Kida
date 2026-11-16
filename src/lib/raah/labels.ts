@@ -48,7 +48,7 @@ export function promoReason(reason: string) {
     case "used":
       return "That code is already used in this prototype.";
     case "unknown":
-      return "Code not recognised. Try RAAH50, FEST25, VILLAGE20, CITY15 or REFER75.";
+      return "Code not recognised. Try KIDA50, FEST25, VILLAGE20, CITY15 or REFER75.";
     case "village-only":
       return "VILLAGE20 is for bike or auto in a town or village.";
     case "city-only":
