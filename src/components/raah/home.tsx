@@ -56,7 +56,7 @@ export function HomeScreen() {
         </button>
       </header>
       <div className="space-y-3 px-4">
-        <MapView pickup={pickup} drop={drop} className={simple ? "h-40" : "h-56"} caption={copy("sampleFix")} />
+        <MapView pickup={pickup} drop={drop} className={simple ? "h-40" : "h-56"} />
         <p className="text-xs text-muted">
           {place?.name}, {place?.state}
           {place?.kind === "village" || place?.kind === "town" ? ` · ${copy("villageNote")}` : ""}

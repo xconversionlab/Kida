@@ -1,99 +1,285 @@
+import { useEffect, useRef, useState } from "react";
+import { LocateFixed } from "lucide-react";
 import { getPlace } from "@/lib/raah/places";
 import type { Selection } from "@/lib/raah/types";
 
-const SLOTS = [
-  { x: 26, y: 64 },
-  { x: 70, y: 36 },
-  { x: 42, y: 28 },
-  { x: 74, y: 70 },
-];
+type Coordinate = [number, number];
 
-function slot(selection?: Selection | null) {
-  if (!selection) return null;
-  const place = getPlace(selection.placeId);
-  const index = place?.landmarks.findIndex((item) => item.id === selection.landmarkId) ?? 0;
-  return SLOTS[Math.max(0, index)] ?? SLOTS[0];
+interface LeafletLayer {
+  addTo(map: LeafletMap): this;
+  remove(): this;
 }
 
-function lerp(a: { x: number; y: number }, b: { x: number; y: number }, t: number) {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+interface LeafletMarker extends LeafletLayer {
+  setLatLng(position: Coordinate): this;
+}
+
+interface LeafletMap {
+  setView(position: Coordinate, zoom?: number, options?: Record<string, unknown>): this;
+  fitBounds(bounds: Coordinate[], options?: Record<string, unknown>): this;
+  getZoom(): number;
+  invalidateSize(): this;
+  remove(): void;
+}
+
+interface LeafletApi {
+  map(element: HTMLElement, options?: Record<string, unknown>): LeafletMap;
+  tileLayer(url: string, options?: Record<string, unknown>): LeafletLayer;
+  circleMarker(position: Coordinate, options?: Record<string, unknown>): LeafletMarker;
+  polyline(points: Coordinate[], options?: Record<string, unknown>): LeafletLayer;
+}
+
+declare global {
+  interface Window {
+    L?: LeafletApi;
+  }
+}
+
+let leafletPromise: Promise<LeafletApi> | null = null;
+
+function loadLeaflet(): Promise<LeafletApi> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Maps are available in the browser only."));
+  }
+  if (window.L) return Promise.resolve(window.L);
+
+  if (!leafletPromise) {
+    leafletPromise = new Promise((resolve, reject) => {
+      const stylesheet = document.createElement("link");
+      stylesheet.rel = "stylesheet";
+      stylesheet.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      stylesheet.dataset.kidaLeaflet = "true";
+      document.head.appendChild(stylesheet);
+
+      const script = document.createElement("script");
+      script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+      script.async = true;
+      script.dataset.kidaLeaflet = "true";
+      script.onload = () => {
+        if (window.L) resolve(window.L);
+        else reject(new Error("The map library loaded without its API."));
+      };
+      script.onerror = () => reject(new Error("The map library could not be loaded."));
+      document.head.appendChild(script);
+    });
+  }
+
+  return leafletPromise;
 }
 
 export function MapView({
   pickup,
   drop,
-  progress = 0,
-  phase = "idle",
   className = "h-64",
-  caption,
 }: {
   pickup?: Selection | null;
   drop?: Selection | null;
-  progress?: number;
-  phase?: "idle" | "to_pickup" | "to_drop";
   className?: string;
-  caption?: string;
 }) {
-  const place = getPlace(pickup?.placeId ?? drop?.placeId ?? "blr");
-  const from = slot(pickup) ?? SLOTS[0];
-  const to = slot(drop);
-  const start = { x: from.x - 16, y: Math.min(88, from.y + 12) };
-  let driver = from;
-  if (phase === "to_pickup") driver = lerp(start, from, progress);
-  if (phase === "to_drop" && to) driver = lerp(from, to, progress);
-  const showRoute = Boolean(to && phase !== "idle");
-  const routeD = to ? `M ${from.x} ${from.y} Q ${(from.x + to.x) / 2} ${Math.min(from.y, to.y) - 8} ${to.x} ${to.y}` : "";
+  const hostRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const pickupLayerRef = useRef<LeafletLayer | null>(null);
+  const dropLayerRef = useRef<LeafletLayer | null>(null);
+  const routeLayerRef = useRef<LeafletLayer | null>(null);
+  const userMarkerRef = useRef<LeafletMarker | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState(false);
+  const [gpsState, setGpsState] = useState<"off" | "locating" | "live" | "error">("off");
+
+  const place = getPlace(pickup?.placeId ?? drop?.placeId ?? "");
+
+  useEffect(() => {
+    let cancelled = false;
+    let createdMap: LeafletMap | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    loadLeaflet()
+      .then((L) => {
+        const element = hostRef.current;
+        if (cancelled || !element) return;
+
+        createdMap = L.map(element, {
+          center: [22.9734, 78.6569],
+          zoom: 5,
+          minZoom: 4,
+          maxZoom: 19,
+          zoomControl: true,
+          scrollWheelZoom: true,
+          attributionControl: true,
+        });
+
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>',
+        }).addTo(createdMap);
+
+        mapRef.current = createdMap;
+        setMapReady(true);
+        window.setTimeout(() => createdMap?.invalidateSize(), 120);
+
+        if (typeof ResizeObserver !== "undefined") {
+          resizeObserver = new ResizeObserver(() => createdMap?.invalidateSize());
+          resizeObserver.observe(element);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMapError(true);
+      });
+
+    return () => {
+      cancelled = true;
+      resizeObserver?.disconnect();
+      if (watchIdRef.current !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      createdMap?.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const L = window.L;
+    if (!mapReady || !map || !L) return;
+
+    pickupLayerRef.current?.remove();
+    dropLayerRef.current?.remove();
+    routeLayerRef.current?.remove();
+    pickupLayerRef.current = null;
+    dropLayerRef.current = null;
+    routeLayerRef.current = null;
+
+    const from: Coordinate | null = pickup ? [pickup.lat, pickup.lng] : null;
+    const to: Coordinate | null = drop ? [drop.lat, drop.lng] : null;
+
+    if (from) {
+      pickupLayerRef.current = L.circleMarker(from, {
+        radius: 8,
+        color: "#171717",
+        weight: 3,
+        fillColor: "#F5C518",
+        fillOpacity: 1,
+      }).addTo(map);
+    }
+
+    if (to) {
+      dropLayerRef.current = L.circleMarker(to, {
+        radius: 8,
+        color: "#ffffff",
+        weight: 3,
+        fillColor: "#171717",
+        fillOpacity: 1,
+      }).addTo(map);
+    }
+
+    if (from && to) {
+      routeLayerRef.current = L.polyline([from, to], {
+        color: "#D6A900",
+        weight: 4,
+        opacity: 0.9,
+        dashArray: "7 8",
+        lineCap: "round",
+      }).addTo(map);
+      map.fitBounds([from, to], { padding: [44, 44], maxZoom: 14 });
+    } else if (from || to) {
+      map.setView(from ?? to!, 13, { animate: true });
+    } else {
+      map.setView([22.9734, 78.6569], 5);
+    }
+  }, [mapReady, pickup?.lat, pickup?.lng, drop?.lat, drop?.lng]);
+
+  function toggleGps() {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+      setGpsState("off");
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      setGpsState("error");
+      return;
+    }
+
+    setGpsState("locating");
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const location: Coordinate = [position.coords.latitude, position.coords.longitude];
+        const map = mapRef.current;
+        const L = window.L;
+        if (!map || !L) return;
+
+        if (userMarkerRef.current) {
+          userMarkerRef.current.setLatLng(location);
+        } else {
+          userMarkerRef.current = L.circleMarker(location, {
+            radius: 8,
+            color: "#ffffff",
+            weight: 3,
+            fillColor: "#2878E5",
+            fillOpacity: 1,
+          }).addTo(map);
+        }
+
+        map.setView(location, Math.max(map.getZoom(), 15), { animate: true });
+        setGpsState("live");
+      },
+      () => {
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
+        setGpsState("error");
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    );
+  }
 
   return (
-    <div className={`kida-map-view relative overflow-hidden rounded-3xl bg-map ${className}`}>
-      <svg viewBox="0 0 100 100" className="absolute inset-0 h-full w-full" aria-hidden>
-        <ellipse cx="22" cy="24" rx="18" ry="10" fill="var(--color-park)" />
-        <path d="M0 78 C 20 70, 40 88, 70 76 S 100 84, 100 90 L 100 100 L 0 100 Z" fill="var(--color-water)" />
-        <path d="M-2 40 H 102" stroke="var(--color-road)" strokeWidth="5" />
-        <path d="M-2 62 H 102" stroke="var(--color-road)" strokeWidth="4" />
-        <path d="M30 -2 V 102" stroke="var(--color-road)" strokeWidth="4" />
-        <path d="M68 -2 V 102" stroke="var(--color-road)" strokeWidth="5" />
-        <path d="M8 20 C 30 28, 50 10, 92 22" fill="none" stroke="var(--color-paper-deep)" strokeWidth="1.4" />
-        {showRoute ? (
-          <path d={routeD} fill="none" stroke="var(--color-primary)" strokeWidth="1.8" strokeDasharray="2 1.4" strokeLinecap="round" />
-        ) : null}
-      </svg>
-      <div className="absolute left-3 top-3 rounded-full bg-surface/95 px-3 py-1 text-xs font-semibold text-ink">
-        {place?.name}
-        <span className="font-medium text-muted"> · {place?.state}</span>
+    <div className={`kida-map-view kida-live-map relative isolate overflow-hidden rounded-3xl ${className}`}>
+      <div ref={hostRef} className="absolute inset-0 z-0 bg-[#e9eee8]" aria-label="Interactive map of India" />
+      <div className="pointer-events-none absolute left-3 top-3 z-[1000] flex max-w-[68%] items-center gap-2 rounded-full border border-black/5 bg-white/95 px-3 py-2 text-xs font-semibold text-ink shadow-sm">
+        <span className="relative flex size-2 shrink-0">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-50" />
+          <span className="relative inline-flex size-2 rounded-full bg-emerald-600" />
+        </span>
+        <span className="truncate">{place ? `${place.name}, ${place.state}` : "India · Live map"}</span>
       </div>
-      {place?.kind === "village" ? (
-        <div className="absolute right-3 top-3 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent">
-          Landmark
+      <button
+        type="button"
+        onClick={toggleGps}
+        disabled={!mapReady}
+        aria-label={gpsState === "live" || gpsState === "locating" ? "Stop live location" : "Show my live location"}
+        aria-pressed={gpsState === "live" || gpsState === "locating"}
+        className="absolute right-3 top-3 z-[1000] inline-flex min-h-10 items-center gap-2 rounded-full border border-black/5 bg-white px-3 text-xs font-semibold text-ink shadow-md disabled:opacity-60"
+      >
+        <LocateFixed className={`size-4 ${gpsState === "live" ? "text-blue-600" : "text-ink"}`} />
+        {gpsState === "locating" ? "Locating…" : gpsState === "live" ? "GPS live" : "My location"}
+      </button>
+      <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] max-w-[72%] rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-medium text-ink shadow-sm">
+        {mapError
+          ? "Map unavailable · check your internet"
+          : gpsState === "live"
+            ? "Your device location is updating"
+            : gpsState === "error"
+              ? "Location permission unavailable"
+              : pickup && drop
+                ? "Dashed line · route preview only"
+                : "India-wide roads and places"}
+      </div>
+      {!mapReady && !mapError ? (
+        <div className="absolute inset-0 z-[900] grid place-items-center bg-[#e9eee8]/90 text-sm font-medium text-ink">
+          Loading India map…
         </div>
       ) : null}
-      <Pin x={from.x} y={from.y} tone="primary" label="Pickup" />
-      {to ? <Pin x={to.x} y={to.y} tone="ink" label="Drop" /> : null}
-      {phase !== "idle" ? (
-        <span
-          className="absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface bg-accent shadow"
-          style={{ left: `${driver.x}%`, top: `${driver.y}%` }}
-          aria-hidden
-        />
-      ) : (
-        <span className="absolute" style={{ left: `${from.x}%`, top: `${from.y}%` }} aria-hidden>
-          <span className="puck absolute -left-3 -top-3 size-6 rounded-full bg-primary" />
-        </span>
-      )}
-      <p className="absolute bottom-2 left-3 right-3 text-xs text-ink/80">
-        {caption ?? "Schematic map · sample roads · not live navigation"}
-      </p>
+      {mapError ? (
+        <div className="absolute inset-0 z-[900] grid place-items-center bg-[#e9eee8] px-6 text-center text-sm font-medium text-ink">
+          Could not load the interactive map. Please check the internet connection and try again.
+        </div>
+      ) : null}
     </div>
-  );
-}
-
-function Pin({ x, y, tone, label }: { x: number; y: number; tone: "primary" | "ink"; label: string }) {
-  return (
-    <span className="absolute -translate-x-1/2 -translate-y-full" style={{ left: `${x}%`, top: `${y}%` }}>
-      <span
-        className={`block size-3.5 rounded-full border-2 border-surface ${tone === "primary" ? "bg-primary" : "bg-ink"}`}
-        title={label}
-      />
-    </span>
   );
 }

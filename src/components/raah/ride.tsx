@@ -33,17 +33,13 @@ export function TrackingScreen() {
   }
   const leftKm = Math.max(0.2, Math.round(ride.fare.km * (1 - ride.progress) * 10) / 10);
   const leftMin = Math.max(1, Math.round(ride.fare.minutes * (1 - ride.progress)));
-  const phase = ride.status === "ongoing" ? "to_drop" : "to_pickup";
   return (
     <div className="pb-6">
       <div className="px-4 pt-3">
         <MapView
           pickup={ride.pickup}
           drop={ride.drop}
-          progress={ride.progress}
-          phase={phase}
           className="h-72"
-          caption={copy("trackSim")}
         />
       </div>
       <div className="space-y-3 px-4 pt-3">

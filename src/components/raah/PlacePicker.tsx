@@ -135,7 +135,6 @@ export function PlacePicker() {
             <MapView
               pickup={toSelection(focused, focused.landmarks[0], "map")}
               className="h-52"
-              caption={copy("villageNote")}
             />
             <div className="mt-3 grid grid-cols-2 gap-2">
               {focused.landmarks.map((landmark) => (
