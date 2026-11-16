@@ -352,9 +352,9 @@ export function CallScreen() {
           <p className="text-sm font-semibold">{copy("official")}</p>
           <p className="mt-1 font-display text-4xl tabular">{company.supportPhone}</p>
           <p className="mt-2 text-sm">{copy("numberNote")}</p>
-          <a href={`tel:${company.supportTel}`} className="mt-4 flex h-12 items-center justify-center rounded-2xl bg-surface font-semibold text-ink">
+          <div className="mt-4 flex h-12 items-center justify-center rounded-2xl bg-surface font-semibold text-ink opacity-70 cursor-not-allowed" aria-disabled="true" title="Official Kida support number will be added before launch">
             {copy("callNow")}
-          </a>
+          </div>
         </div>
         <div>
           <h2 className="font-semibold">{copy("how")}</h2>
@@ -375,9 +375,6 @@ export function CallScreen() {
             {copy("openLink")}
           </Btn>
         </Card>
-        <Btn variant="line" className="w-full" onClick={() => open("operator")}>
-          {copy("openDesk")}
-        </Btn>
       </div>
     </div>
   );
@@ -409,7 +406,7 @@ export function ConsentScreen() {
 }
 
 const OFFERS = [
-  { code: "RAAH50", title: "First ride", detail: "₹50 off once on a prototype booking." },
+  { code: "KIDA50", title: "First ride", detail: "₹50 off once on a prototype booking." },
   { code: "FEST25", title: "Festival week", detail: "Sample festive offer. 10% off, capped at ₹40." },
   { code: "VILLAGE20", title: "Town and village", detail: "₹20 off bike or auto outside the big cities." },
   { code: "CITY15", title: "City roads", detail: "₹15 off in metros and cities." },
@@ -480,11 +477,11 @@ export function SupportScreen() {
     <div className="pb-8">
       <Header title={copy("supportTitle")} onBack={back} />
       <div className="space-y-3 px-4">
-        <a href={`tel:${company.supportTel}`} className="block rounded-3xl bg-primary px-4 py-4 text-primary-ink">
+        <div className="block rounded-3xl bg-primary px-4 py-4 text-primary-ink opacity-70 cursor-not-allowed" aria-disabled="true" title="Official Kida support number will be added before launch">
           <span className="block text-sm">{copy("callNow")}</span>
           <span className="font-display text-3xl tabular">{company.supportPhone}</span>
           <span className="mt-1 block text-sm">{company.hours}</span>
-        </a>
+        </div>
         <Card>
           <p className="font-semibold">{copy("ruralTitle")}</p>
           <p className="mt-1 text-sm text-muted">{copy("ruralBody")}</p>
@@ -563,6 +560,7 @@ export function PaymentsScreen() {
     <div className="pb-6">
       <Header title={copy("payments")} subtitle={copy("paySecure")} onBack={back} />
       <div className="space-y-2 px-4">
+        <p className="rounded-2xl border border-line bg-primary-soft px-3 py-3 text-sm text-ink">Prototype only: no payment is processed. A licensed payment gateway and secure backend are required before launch.</p>
         {PAY_METHODS.map((method) => (
           <button
             key={method}
