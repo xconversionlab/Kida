@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+
+  --color-paper: #f3efe7;
+  --color-paper-deep: #e6dfd2;
+  --color-surface: #fffcf8;
+  --color-ink: #1a1612;
+  --color-muted: #6f675e;
+  --color-line: #e5dcd0;
+  --color-primary: #0e6b5c;
+  --color-primary-ink: #f3fbf8;
+  --color-primary-soft: #e4f3ef;
+  --color-accent: #c56a1a;
+  --color-accent-ink: #fff8f1;
+  --color-accent-soft: #f8ead7;
+  --color-danger: #9f2d2d;
+  --color-danger-soft: #f8e6e4;
+  --color-ok: #1d7a45;
+  --color-ok-soft: #e5f4ea;
+  --color-map: #e3ebe4;
+  --color-water: #c9d7e2;
+  --color-park: #d7e6d4;
+  --color-road: #f7f4ee;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    font-family: var(--font-sans);
+    background: var(--color-paper);
+    color: var(--color-ink);
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+  }
+}
+
+html[data-contrast="high"] {
+  --color-ink: #100e0c;
+  --color-muted: #3a342e;
+  --color-line: #1a1612;
+  --color-paper: #fffdf8;
+  --color-surface: #ffffff;
+  --color-primary: #08584c;
+  --color-primary-soft: #d5efe9;
+}
+
+html[data-type="large"] {
+  font-size: 18px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 240ms ease-out;
+}
+
+@keyframes puck {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.35);
+    opacity: 0.15;
+  }
+}
+
+.puck {
+  animation: puck 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .puck {
+    animation: none;
+  }
+}

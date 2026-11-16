@@ -1,0 +1,36 @@
+{
+  "url": "http://127.0.0.1:8080/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Raah",
+      "hasCanvas": false,
+      "bodyTextLen": 31,
+      "bodyTextHash": "b58167e1ee6e35856b201dfd361eade4445b4779211ba604d7d622896175d054",
+      "bodyTextPrefix": "Raah Every road. Every village.",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Raah",
+      "hasCanvas": false,
+      "bodyTextLen": 83,
+      "bodyTextHash": "73685fb9a5580067b423fa611101e3bc113690f580d3af96bf40cca820162e88",
+      "bodyTextPrefix": "Prototype · sample fares · not a live service INDIA Raah Every r",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-preview-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-preview.json"
+}

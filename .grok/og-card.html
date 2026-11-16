@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @font-face {
+      font-family: "Fraunces";
+      src: url("./fonts/Fraunces-600.ttf") format("truetype");
+      font-weight: 600;
+      font-style: normal;
+      font-display: block;
+    }
+    @font-face {
+      font-family: "Fraunces";
+      src: url("./fonts/Fraunces-italic-500.ttf") format("truetype");
+      font-weight: 500;
+      font-style: italic;
+      font-display: block;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 1200px;
+      height: 630px;
+      overflow: hidden;
+      background: #F3EFE7;
+    }
+    .card {
+      position: relative;
+      width: 1200px;
+      height: 630px;
+      background: #F3EFE7;
+      color: #1A1612;
+    }
+    .scene {
+      position: absolute;
+      inset: 0;
+      width: 1200px;
+      height: 630px;
+    }
+    .lockup {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 108px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    h1 {
+      margin: 0;
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 600;
+      font-style: normal;
+      font-size: 340px;
+      line-height: 0.82;
+      letter-spacing: -0.045em;
+      color: #1A1612;
+    }
+    .rule {
+      width: 56px;
+      height: 5px;
+      margin: 26px 0 16px;
+      border-radius: 3px;
+      background: #C56A1A;
+    }
+    p {
+      margin: 0;
+      font-family: "Fraunces", Georgia, serif;
+      font-weight: 500;
+      font-style: italic;
+      font-size: 40px;
+      line-height: 1;
+      letter-spacing: -0.015em;
+      color: #0E6B5C;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <svg class="scene" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <rect width="1200" height="630" fill="#F3EFE7"/>
+      <circle cx="1106" cy="86" r="42" fill="#C56A1A"/>
+      <!-- banyan, left margin -->
+      <g fill="#0E6B5C">
+        <rect x="78" y="392" width="10" height="86" rx="5"/>
+        <circle cx="70" cy="378" r="28"/>
+        <circle cx="98" cy="366" r="34"/>
+        <circle cx="124" cy="388" r="24"/>
+        <circle cx="86" cy="400" r="18"/>
+      </g>
+      <!-- land -->
+      <path fill="#0E6B5C" d="M0 548c180-36 340-18 520-28 200-12 360 8 680-6v116H0V548z"/>
+      <path fill="#08584c" d="M0 586c220-20 420 6 640-8 180-12 360 4 560-10v62H0V586z"/>
+      <!-- road -->
+      <path d="M40 572c240-22 460 10 680-6 140-6 300 2 440-8" fill="none" stroke="#F3EFE7" stroke-width="14" stroke-linecap="round"/>
+      <path d="M70 572c230-20 440 8 650-4" fill="none" stroke="#C56A1A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="10 14"/>
+
+      <!-- scooter -->
+      <g transform="translate(250 518)" fill="none" stroke="#F3EFE7" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="16" cy="36" r="11"/>
+        <circle cx="62" cy="36" r="11"/>
+        <path d="M16 36h22l12-18h16"/>
+        <path d="M42 18l6-10h16"/>
+        <path d="M52 8h8"/>
+      </g>
+      <!-- auto -->
+      <g transform="translate(548 504)">
+        <path d="M22 30h58c4 0 8 4 8 8v12H16V38c0-4 3-8 6-8z" fill="#C56A1A"/>
+        <path d="M30 30V16h40v14" fill="#F3EFE7"/>
+        <rect x="36" y="18" width="12" height="9" rx="1" fill="#0E6B5C"/>
+        <rect x="52" y="18" width="12" height="9" rx="1" fill="#0E6B5C"/>
+        <circle cx="30" cy="52" r="8" fill="#1A1612"/>
+        <circle cx="74" cy="52" r="8" fill="#1A1612"/>
+        <circle cx="30" cy="52" r="3" fill="#F3EFE7"/>
+        <circle cx="74" cy="52" r="3" fill="#F3EFE7"/>
+      </g>
+      <!-- cab -->
+      <g transform="translate(860 512)">
+        <path d="M14 26h78v18H14z" fill="#1A1612"/>
+        <path d="M26 26 36 10h36l12 16" fill="#1A1612"/>
+        <path d="M40 14h12v9H40z" fill="#F3EFE7"/>
+        <path d="M56 14h14v9H56z" fill="#F3EFE7"/>
+        <circle cx="28" cy="46" r="9" fill="#1A1612"/>
+        <circle cx="80" cy="46" r="9" fill="#1A1612"/>
+        <circle cx="28" cy="46" r="3.5" fill="#F3EFE7"/>
+        <circle cx="80" cy="46" r="3.5" fill="#F3EFE7"/>
+      </g>
+    </svg>
+    <div class="lockup">
+      <h1>Raah</h1>
+      <div class="rule"></div>
+      <p>Every road. Every village.</p>
+    </div>
+  </div>
+</body>
+</html>
