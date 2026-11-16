@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useRaah } from "@/lib/raah/store";
-import { OperatorConsole } from "./Operator";
 import { CustomerScreens, ProtoChrome, TabBar } from "./screens";
 import { Wordmark } from "./art";
 
@@ -46,20 +45,17 @@ function Stage() {
     document.documentElement.dataset.type = large ? "large" : "base";
   }, [contrast, large]);
   return (
-    <main className="min-h-dvh bg-paper text-ink lg:grid lg:grid-cols-[28rem_minmax(0,1fr)] lg:gap-4 lg:p-4">
+    <main className="min-h-dvh bg-paper text-ink lg:flex lg:justify-center lg:p-6">
       <div
         data-contrast={contrast ? "high" : "normal"}
         data-type={large ? "large" : "base"}
-        className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-surface lg:h-[calc(100dvh-2rem)] lg:min-h-0 lg:overflow-hidden lg:rounded-3xl lg:border lg:border-line"
+        className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-surface shadow-sm lg:h-[calc(100dvh-3rem)] lg:min-h-0 lg:overflow-hidden lg:rounded-3xl lg:border lg:border-line"
       >
         <ProtoChrome />
         <div className="min-h-0 flex-1 overflow-y-auto">
           <CustomerScreens />
         </div>
         <TabBar />
-      </div>
-      <div className="hidden min-h-0 lg:block lg:h-[calc(100dvh-2rem)] lg:overflow-hidden lg:rounded-3xl lg:border lg:border-line">
-        <OperatorConsole />
       </div>
     </main>
   );
