@@ -1,0 +1,91 @@
+name: Build Kida Customer APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "client-approval/customer-app"
+    paths:
+      - "android-wrapper/**"
+      - ".github/workflows/build-kida-apk.yml"
+      - "public/brand/kida-mark.svg"
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    name: Build installable Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout Kida customer app
+        uses: actions/checkout@v4
+        with:
+          ref: client-approval/customer-app
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: android-wrapper/package.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Capacitor dependencies
+        working-directory: android-wrapper
+        run: npm install --no-audit --no-fund
+
+      - name: Generate native Android project
+        working-directory: android-wrapper
+        run: npx cap add android
+
+      - name: Add Kida location permissions
+        working-directory: android-wrapper
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          manifest = Path("android/app/src/main/AndroidManifest.xml")
+          text = manifest.read_text()
+          marker = "<application"
+          permissions = (
+              '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\\n'
+              '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\\n'
+              '    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />\\n'
+          )
+          if "ACCESS_FINE_LOCATION" not in text:
+              text = text.replace(marker, permissions + marker, 1)
+          manifest.write_text(text)
+          PY
+
+      - name: Sync Capacitor configuration
+        working-directory: android-wrapper
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android-wrapper/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Verify APK exists and is a valid ZIP package
+        run: |
+          APK="android-wrapper/android/app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          echo "Built APK: $APK ($(stat -c%s "$APK") bytes)"
+
+      - name: Upload installable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kida-customer-debug-apk
+          path: android-wrapper/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
