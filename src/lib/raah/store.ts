@@ -696,7 +696,11 @@ export const useRaah = create<RaahState>()(
       partialize: (s) => {
         // Google Places content is intentionally kept in memory only. Persisting
         // it locally would cache Google place names, addresses and coordinates.
-        const persistedRides = s.rides.filter((ride) => !containsGoogleContent(ride.pickup) && !containsGoogleContent(ride.drop) && !(ride.stops ?? []).some(containsGoogleContent)).map(({ routePath: _routePath, ...ride }) => ride);
+        const persistedRides = s.rides.filter((ride) => !containsGoogleContent(ride.pickup) && !containsGoogleContent(ride.drop) && !(ride.stops ?? []).some(containsGoogleContent)).map((ride) => {
+          const persistedRide = { ...ride };
+          delete persistedRide.routePath;
+          return persistedRide;
+        });
         const persistedServiceRequests = s.serviceRequests.filter((request) => !containsGoogleContent(request.pickup) && (!request.drop || !containsGoogleContent(request.drop)));
         const persistedRideIds = new Set(persistedRides.map((ride) => ride.id));
         return ({
