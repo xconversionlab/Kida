@@ -61,10 +61,10 @@ export function resolvePromo(
 ): PromoResult {
   const code = raw.trim().toUpperCase();
   if (!code) return { ok: false, code: null, discount: 0, reason: "empty" };
-  if (used.includes(code) && code === "RAAH50") {
+  if (used.includes(code) && code === "KIDA50") {
     return { ok: false, code, discount: 0, reason: "used" };
   }
-  if (code === "RAAH50") {
+  if (code === "KIDA50") {
     return { ok: true, code, discount: Math.min(50, subtotal), reason: "first" };
   }
   if (code === "FEST25") {
