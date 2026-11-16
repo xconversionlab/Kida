@@ -351,7 +351,7 @@ export function ShareScreen() {
       <Header title={copy("shareTitle")} subtitle={copy("shareBody")} onBack={back} />
       <div className="px-4">
         <div className="rounded-3xl border border-line p-4">
-          <p className="text-xs font-semibold text-primary">RAAH TRIP PREVIEW</p>
+          <p className="text-xs font-semibold text-primary">KIDA TRIP PREVIEW</p>
           <p className="mt-2 font-display text-2xl">{ride?.driver?.name ?? "Driver not assigned"}</p>
           <p className="tabular text-lg">{ride?.driver?.plate}</p>
           <p className="mt-2 text-sm text-muted">{ride?.pickup.line}</p>
