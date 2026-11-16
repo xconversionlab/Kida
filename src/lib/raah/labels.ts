@@ -1,14 +1,14 @@
 import type { Lang, PayMethod, VehicleId } from "./types";
 
 const vehicles: Record<Lang, Record<VehicleId, string>> = {
-  en: { bike: "Bike", auto: "Auto", mini: "Mini cab", sedan: "Sedan", xl: "7 seater" },
-  hi: { bike: "बाइक", auto: "ऑटो", mini: "मिनी कैब", sedan: "सेडान", xl: "7 सीटर" },
+  en: { bike: "E-Bike Taxi", auto: "Auto", mini: "Mini cab", sedan: "Sedan", xl: "7 seater" },
+  hi: { bike: "ई-बाइक टैक्सी", auto: "ऑटो", mini: "मिनी कैब", sedan: "सेडान", xl: "7 सीटर" },
   ta: { bike: "பைக்", auto: "ஆட்டோ", mini: "மினி கேப்", sedan: "செடான்", xl: "7 இருக்கை" },
   te: { bike: "బైక్", auto: "ఆటో", mini: "మినీ క్యాబ్", sedan: "సెడాన్", xl: "7 సీటర్" },
   kn: { bike: "ಬೈಕ್", auto: "ಆಟೋ", mini: "ಮಿನಿ ಕ್ಯಾಬ್", sedan: "ಸೆಡಾನ್", xl: "7 ಸೀಟರ್" },
   ml: { bike: "ബൈക്ക്", auto: "ഓട്ടോ", mini: "മിനി ക്യാബ്", sedan: "സെഡാൻ", xl: "7 സീറ്റർ" },
   bn: { bike: "বাইক", auto: "অটো", mini: "মিনি ক্যাব", sedan: "সেডান", xl: "৭ সিটার" },
-  mr: { bike: "बाईक", auto: "ऑटो", mini: "मिनी कॅब", sedan: "सेडान", xl: "7 सीटर" },
+  mr: { bike: "ई-बाईक टॅक्सी", auto: "ऑटो", mini: "मिनी कॅब", sedan: "सेडान", xl: "7 सीटर" },
   gu: { bike: "બાઇક", auto: "ઑટો", mini: "મિની કેબ", sedan: "સેડાન", xl: "7 સીટર" },
   pa: { bike: "ਬਾਈਕ", auto: "ਆਟੋ", mini: "ਮਿਨੀ ਕੈਬ", sedan: "ਸੇਡਾਨ", xl: "7 ਸੀਟਰ" },
 };
