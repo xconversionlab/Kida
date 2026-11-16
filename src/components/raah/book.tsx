@@ -58,7 +58,7 @@ export function VehiclesScreen() {
                   </Pill>
                 </span>
                 <span className="mt-1 block text-sm text-muted">
-                  {item.capacity} {copy("seats")} · {fare.minutes} {copy("min")} · {fare.arrivalMin} {copy("min")} {copy("away")}
+                  {item.capacity} {copy("seats")} · ₹{item.perKm}/km · {fare.minutes} {copy("min")} · {fare.arrivalMin} {copy("min")} {copy("away")}
                 </span>
               </span>
               <span className="font-semibold tabular">{blocked ? "—" : inr(fare.total)}</span>
