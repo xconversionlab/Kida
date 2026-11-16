@@ -4,18 +4,18 @@
   --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
 
-  --color-paper: #f3efe7;
-  --color-paper-deep: #e6dfd2;
-  --color-surface: #fffcf8;
-  --color-ink: #1a1612;
-  --color-muted: #6f675e;
-  --color-line: #e5dcd0;
-  --color-primary: #0e6b5c;
-  --color-primary-ink: #f3fbf8;
-  --color-primary-soft: #e4f3ef;
-  --color-accent: #c56a1a;
-  --color-accent-ink: #fff8f1;
-  --color-accent-soft: #f8ead7;
+  --color-paper: #fffdf5;
+  --color-paper-deep: #f7f0d8;
+  --color-surface: #ffffff;
+  --color-ink: #171717;
+  --color-muted: #656565;
+  --color-line: #ece5d2;
+  --color-primary: #f5c518;
+  --color-primary-ink: #171717;
+  --color-primary-soft: #fff3bf;
+  --color-accent: #191919;
+  --color-accent-ink: #ffffff;
+  --color-accent-soft: #f1f1f1;
   --color-danger: #9f2d2d;
   --color-danger-soft: #f8e6e4;
   --color-ok: #1d7a45;
@@ -62,8 +62,8 @@ html[data-contrast="high"] {
   --color-line: #1a1612;
   --color-paper: #fffdf8;
   --color-surface: #ffffff;
-  --color-primary: #08584c;
-  --color-primary-soft: #d5efe9;
+  --color-primary: #e6b800;
+  --color-primary-soft: #fff0a8;
 }
 
 html[data-type="large"] {
