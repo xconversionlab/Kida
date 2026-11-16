@@ -133,7 +133,7 @@ export function HomeScreen() {
         <button type="button" onClick={() => tab("offers")} className="flex w-full items-center justify-between rounded-2xl bg-accent-soft px-4 py-3 text-left">
           <span>
             <span className="block text-sm font-semibold text-accent">{copy("offers")}</span>
-            <span className="text-sm text-ink">RAAH50 · ₹50 off the first prototype ride</span>
+            <span className="text-sm text-ink">KIDA50 · ₹50 off the first prototype ride</span>
           </span>
         </button>
       </div>
