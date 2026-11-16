@@ -60,11 +60,11 @@ jobs:
           manifest = Path("android/app/src/main/AndroidManifest.xml")
           text = manifest.read_text()
           marker = "<application"
-          permissions = "\\n".join([
+          permissions = "\n".join([
               '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
               '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />',
               '    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />',
-          ]) + "\\n"
+          ]) + "\n"
           if "ACCESS_FINE_LOCATION" not in text:
               text = text.replace(marker, permissions + marker, 1)
           manifest.write_text(text)
@@ -73,16 +73,16 @@ jobs:
           values = res / "values"
           values.mkdir(parents=True, exist_ok=True)
           (values / "kida_colors.xml").write_text(
-              '<?xml version="1.0" encoding="utf-8"?>\\n'
-              '<resources><color name="kida_launcher_background">#F5C518</color></resources>\\n'
+              '<?xml version="1.0" encoding="utf-8"?>\n'
+              '<resources><color name="kida_launcher_background">#F5C518</color></resources>\n'
           )
 
           adaptive = (
-              '<?xml version="1.0" encoding="utf-8"?>\\n'
-              '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\\n'
-              '  <background android:drawable="@color/kida_launcher_background" />\\n'
-              '  <foreground android:drawable="@drawable/kida_launcher_foreground" />\\n'
-              '</adaptive-icon>\\n'
+              '<?xml version="1.0" encoding="utf-8"?>\n'
+              '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+              '  <background android:drawable="@color/kida_launcher_background" />\n'
+              '  <foreground android:drawable="@drawable/kida_launcher_foreground" />\n'
+              '</adaptive-icon>\n'
           )
           adaptive_dir = res / "mipmap-anydpi-v26"
           adaptive_dir.mkdir(parents=True, exist_ok=True)
@@ -90,6 +90,7 @@ jobs:
           (adaptive_dir / "ic_launcher_round.xml").write_text(adaptive)
           PY
 
+          mkdir -p android/app/src/main/res/drawable-nodpi
           if ! command -v magick >/dev/null 2>&1 && ! command -v convert >/dev/null 2>&1; then
             sudo apt-get update
             sudo apt-get install -y imagemagick
