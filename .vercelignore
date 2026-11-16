@@ -1,3 +1,0 @@
-# This branch deploys the customer app from source. Do not ship the stale checked-in Build Output API snapshot.
-.vercel/output
-.vercel/cache
