@@ -123,7 +123,7 @@ export function PhoneScreen() {
   const [error, setError] = useState("");
   return (
     <div className="px-4 py-6">
-      <p className="font-display text-4xl text-ink">Raah</p>
+      <p className="font-display text-4xl text-ink">Kida</p>
       <h1 className="mt-6 font-display text-3xl">{copy("phoneTitle")}</h1>
       <p className="mt-2 text-sm text-muted">{copy("phoneSub")}</p>
       <label className="mt-6 flex h-14 items-center gap-3 rounded-2xl border border-line bg-paper px-3">
