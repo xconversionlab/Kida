@@ -170,7 +170,7 @@ export function MapView({
     const from: Coordinate | null = pickup ? [pickup.lat, pickup.lng] : null;
     const to: Coordinate | null = drop ? [drop.lat, drop.lng] : null;
 
-    stops.forEach((stop, index) => {
+    stops.forEach((stop) => {
       stopLayersRef.current.push(L.circleMarker([stop.lat, stop.lng], {
         radius: 6,
         color: "#ffffff",
