@@ -7,6 +7,7 @@ import { company } from "@/lib/raah/company";
 import { LEGAL } from "@/lib/raah/legal";
 import { payLabel } from "@/lib/raah/labels";
 import { PAY_METHODS } from "@/lib/raah/pricing";
+import { getCustomerRewardProgress } from "@/lib/raah/rewards";
 import { useRaah, type PlaceTarget } from "@/lib/raah/store";
 import type { PayMethod } from "@/lib/raah/types";
 import { MapView } from "./MapView";
@@ -359,9 +360,11 @@ export function MembershipScreen() {
 
 export function RewardsScreen() {
   const back = useRaah((s) => s.back);
+  const rides = useRaah((s) => s.rides);
   const [message,setMessage] = useState("");
+  const progress = getCustomerRewardProgress(rides);
   async function invite() {
-    const inviteText = `Join me on Kida, the ride booking app. Referral rewards will be announced when the programme launches.`;
+    const inviteText = "Join me on Kida, the ride booking app. Referral rewards will be announced when the programme launches.";
     try {
       if(navigator.share) await navigator.share({title:"Kida invitation",text:inviteText});
       else if(navigator.clipboard?.writeText) { await navigator.clipboard.writeText(inviteText); setMessage("Invitation text copied."); }
@@ -372,9 +375,22 @@ export function RewardsScreen() {
     <div className="pb-8">
       <Header title="Rewards & referrals" subtitle="Your Kida rewards" onBack={back}/>
       <div className="space-y-3 px-4">
-        <Card><p className="text-xs font-semibold text-muted">AVAILABLE KIDA COINS</p><p className="mt-2 font-display text-5xl">0</p><p className="mt-1 text-sm text-muted">Your rewards wallet will appear here after the rewards service is launched.</p></Card>
+        <Card>
+          <p className="text-xs font-semibold text-muted">SIXTH-RIDE FREE OFFER</p>
+          <p className="mt-2 font-display text-3xl">5 paid rides · 1 free cab ride</p>
+          <p className="mt-2 text-sm text-muted">{progress.paidRidesTowardReward} of 5 completed paid account rides toward your next reward.</p>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-paper">
+            <div className="h-full rounded-full bg-primary" style={{ width: String(Math.min(100, progress.paidRidesTowardReward * 20)) + "%" }} />
+          </div>
+          <p className="mt-3 text-sm font-semibold">
+            {progress.rewardPending ? "Your free ride reward is reserved against a current booking."
+              : progress.rewardAvailable ? "Your free cab ride is available."
+              : String(Math.max(0, 5 - progress.paidRidesTowardReward)) + " more completed paid ride(s) to unlock it."}
+          </p>
+          <p className="mt-2 text-xs text-muted">The reward applies to Mini and 7-seater cab trips strictly below 7 km. A ride of 7 km or more is paid at the normal fare. Kida pays the Captain for a free reward trip.</p>
+        </Card>
+        <Card><p className="text-xs font-semibold text-muted">AVAILABLE KIDA COINS</p><p className="mt-2 font-display text-5xl">0</p><p className="mt-1 text-sm text-muted">Kida Coins are not part of this client-approved sixth-ride offer.</p></Card>
         <Card><p className="font-semibold">Refer a friend</p><p className="mt-1 text-sm text-muted">Invite friends to Kida. Referral codes and cash/ride credits will activate after account and rewards services are connected.</p><Btn className="mt-3 w-full" onClick={()=>void invite()}>Invite a friend</Btn>{message?<p className="mt-2 text-sm text-muted">{message}</p>:null}</Card>
-        <Card><p className="font-semibold">Reward eligibility</p><p className="mt-1 text-sm text-muted">No referral reward is being credited in this preview. We will display official rules, expiry and qualifying ride conditions before the programme is enabled.</p></Card>
       </div>
     </div>
   );
@@ -631,6 +647,32 @@ const OFFERS = [
   { code: "REFER75", title: "Referral sample", detail: "₹75 off once. A live referral would credit both people after the trip." },
 ];
 
+function SixthRideOfferCard() {
+  const rides = useRaah((s) => s.rides);
+  const progress = getCustomerRewardProgress(rides);
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-primary">KIDA CUSTOMER OFFER</p>
+          <p className="mt-1 font-display text-2xl">Every 6th eligible cab ride is free</p>
+        </div>
+        <Pill tone="ok">5 + 1</Pill>
+      </div>
+      <p className="mt-2 text-sm text-muted">{progress.paidRidesTowardReward}/5 completed paid account rides toward your next free ride.</p>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper">
+        <div className="h-full rounded-full bg-primary" style={{ width: String(Math.min(100, progress.paidRidesTowardReward * 20)) + "%" }} />
+      </div>
+      <p className="mt-2 text-sm font-semibold">
+        {progress.rewardPending ? "Your free ride reward is reserved."
+          : progress.rewardAvailable ? "Your reward is ready for an eligible cab trip."
+          : String(Math.max(0, 5 - progress.paidRidesTowardReward)) + " more completed paid ride(s) to unlock the reward."}
+      </p>
+      <p className="mt-2 text-xs text-muted">Terms: five completed paid rides first; then one free Mini or 7-seater cab ride strictly below 7 km. A 7 km or longer ride is paid at the normal fare. Kida funds the Captain's payout for the free ride.</p>
+    </Card>
+  );
+}
+
 export function OffersScreen() {
   const copy = useCopy();
   const back = useRaah((s) => s.back);
@@ -642,6 +684,7 @@ export function OffersScreen() {
     <div className="pb-6">
       <Header title={copy("offersTitle")} subtitle={copy("offersSub")} onBack={stack.length ? back : undefined} />
       <div className="space-y-3 px-4">
+        <SixthRideOfferCard />
         {sponsor ? (
           <div className="rounded-3xl bg-paper-deep p-4">
             <p className="text-xs font-semibold text-muted">Sample sponsor · not a live advertisement</p>
