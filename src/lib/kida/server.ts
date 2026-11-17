@@ -28,7 +28,10 @@ const farePreviewSchema = z.object({
 async function getVerifiedRoadDistanceKm(points: Array<{ lat: number; lng: number }>): Promise<number> {
   if (points.length < 2) throw new Error("A pickup and destination are required to verify this reward.");
 
-  const configuredBaseUrl = process.env.KIDA_OSRM_BASE_URL || "https://router.project-osrm.org";
+  const configuredBaseUrl = process.env.KIDA_OSRM_BASE_URL;
+  if (!configuredBaseUrl) {
+    throw new Error("KIDA_OSRM_BASE_URL is not configured for this environment.");
+  }
   const baseUrl = configuredBaseUrl.endsWith("/") ? configuredBaseUrl.slice(0, -1) : configuredBaseUrl;
   const coordinates = points.map((point) => `${point.lng},${point.lat}`).join(";");
   const url = `${baseUrl}/route/v1/driving/${coordinates}?overview=false&steps=false`;
