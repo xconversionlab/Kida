@@ -61,7 +61,7 @@ test("Kida V1 migrations create scoped customer records and booking audit rows",
     const settings = await db.query(
       `select platform_commission_percent, captain_share_percent,
               customer_paid_rides_for_free, customer_free_ride_max_km,
-              driver_daily_bonus_completed_rides, driver_daily_bonus_amount_paise,
+              driver_daily_bonus_completed_rides, driver_daily_bonus_amount_paise::text as driver_daily_bonus_amount_paise,
               driver_required_opening_balance_paise, business_timezone
          from public.kida_platform_settings where id = 1`,
     );
@@ -71,7 +71,7 @@ test("Kida V1 migrations create scoped customer records and booking audit rows",
       customer_paid_rides_for_free: 5,
       customer_free_ride_max_km: "7.00",
       driver_daily_bonus_completed_rides: 15,
-      driver_daily_bonus_amount_paise: 20000,
+      driver_daily_bonus_amount_paise: "20000",
       driver_required_opening_balance_paise: null,
       business_timezone: "Asia/Kolkata",
     });
