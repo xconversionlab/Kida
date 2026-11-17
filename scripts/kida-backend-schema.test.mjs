@@ -57,11 +57,14 @@ test("Kida V1 migrations create scoped customer records and booking audit rows",
     );
     assert.deepEqual(events.rows, [{ event_type: "booking_requested", to_status: "requested" }]);
 
+    await db.query(
+      "update public.kida_profiles set phone_e164 = $1 where user_id = $2",
+      ["+919999999999", "customer-1"],
+    );
     await assert.rejects(
       db.query(
-        `insert into public.kida_profiles (user_id, phone_e164)
-         values ($1, $2)`,
-        ["customer-1", "not-a-phone"],
+        "update public.kida_profiles set phone_e164 = $1 where user_id = $2",
+        ["not-a-phone", "customer-1"],
       ),
     );
   } finally {
