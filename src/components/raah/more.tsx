@@ -52,7 +52,11 @@ export function AccountScreen() {
           <span>
             <span className="block text-lg font-semibold">{name}</span>
             <span className="text-sm text-muted">+91 {prettyPhone(phone)}</span>
-            <span className="mt-1 block text-xs font-semibold text-primary">Preview account · not phone-verified</span>
+            <span className="mt-1 block text-xs font-semibold text-primary">
+              {authEnabled && user && !user.isDevFallback
+                ? "Kida account · signed in · phone not verified"
+                : "Preview account · not phone-verified"}
+            </span>
           </span>
         </button>
         <div className="space-y-2">
@@ -174,7 +178,11 @@ export function ProfileScreen() {
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold">{name}</p>
             <p className="text-sm text-muted tabular">+91 {prettyPhone(phone)}</p>
-            <p className="mt-1 text-xs font-semibold text-primary">Preview account · not phone-verified</p>
+            <p className="mt-1 text-xs font-semibold text-primary">
+              {authEnabled && useCurrentUserState().user && !useCurrentUserState().user?.isDevFallback
+                ? "Kida account · signed in · phone not verified"
+                : "Preview account · not phone-verified"}
+            </p>
           </div>
           <label className="text-xs font-semibold text-primary">
             Change photo
