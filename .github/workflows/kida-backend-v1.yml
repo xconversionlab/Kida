@@ -25,7 +25,7 @@ on:
       - ".github/workflows/kida-backend-v1.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   quality:
@@ -41,6 +41,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Regenerate the npm lockfile if the existing manifest is out of sync
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Commit lockfile repair when needed
+        run: |
+          if ! git diff --quiet -- package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add package-lock.json
+            git commit -m "chore: synchronize npm lockfile for Backend V1"
+            git push
+          fi
 
       - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
