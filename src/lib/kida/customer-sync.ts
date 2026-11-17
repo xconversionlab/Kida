@@ -55,11 +55,11 @@ function selectionFromBackend(value: BackendSelection, kind: "pickup" | "drop"):
   const source = SELECTION_SOURCES.has(rawSource as Selection["source"])
     ? rawSource as Selection["source"]
     : "sample";
-  const isGoogle = source === "google";
+  const isLegacyExternalMap = source === "google";
   const lat = number(value.lat, knownPlace?.lat ?? 0);
   const lng = number(value.lng, knownPlace?.lng ?? 0);
-  const label = text(value.label) || knownPlace?.name || (isGoogle ? "Saved map location" : kind === "pickup" ? "Saved pickup" : "Saved destination");
-  const line = text(value.line) || knownPlace?.district || (isGoogle
+  const label = text(value.label) || knownPlace?.name || (isLegacyExternalMap ? "Saved map location" : kind === "pickup" ? "Saved pickup" : "Saved destination");
+  const line = text(value.line) || knownPlace?.district || (isLegacyExternalMap
     ? "Older map reference saved; address is not cached"
     : "Trip location saved with your booking");
 
