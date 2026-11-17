@@ -7,7 +7,11 @@ Kida is a client-review prototype for an India-wide mobility product: E-Bike Tax
 - `src/routes/` — TanStack Start shell. The customer product lives at `/`.
 - `src/lib/raah/` — types, sample places, fares, languages, company placeholders and browser state.
 - `src/components/raah/` — customer screens, schematic map and the retained operator-desk source (not exposed in the customer-facing app).
-- State is Zustand, persisted in the browser only. There is no customer database and no live auth provider in this phase.
+- The client-review journey still uses Zustand browser persistence and a local demo OTP; this preview state is not the production customer account or booking record.
+- Backend V1 adds Better Auth at `/api/auth/*`, a sign-in page at `/login`, and authenticated server functions in `src/lib/kida/server.ts`.
+- Neon Postgres is used when the deployment supplies `DATABASE_URL`; PGlite remains the in-memory preview fallback. Schema lives in ordered `migrations/*.sql` files.
+- V1 stores customer profiles, customer-owned booking requests, booking audit events, support tickets and safety incident reports. It does not yet connect those endpoints to the Customer screens.
+- Existing Better Auth sign-in is Google/X; the customer phone/OTP UI still uses a demonstration code and needs a production OTP provider before launch.
 - Company CIN, GSTIN, office, phone and email are placeholders in `src/lib/raah/company.ts`, ready to be replaced by verified client-owned information.
 
 ## Android APK (current deliverable)
