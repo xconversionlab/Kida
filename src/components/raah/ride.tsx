@@ -121,19 +121,19 @@ function CancelBox() {
 
   async function cancel(reason: string) {
     if (!ride || saving) return;
-    if (!selectedRide.backendBookingId) {
+    if (!ride.backendBookingId) {
       cancelLocal(reason);
       return;
     }
     setSaving(true);
     try {
-      const result = await cancelMyBooking({ data: { bookingId: selectedRide.backendBookingId, reason } });
+      const result = await cancelMyBooking({ data: { bookingId: ride.backendBookingId, reason } });
       if (!result) {
         setToast("This booking can only be cancelled before Captain acceptance.");
         return;
       }
       useRaah.setState((state) => ({
-        rides: state.rides.map((item) => item.backendBookingId === selectedRide.backendBookingId
+        rides: state.rides.map((item) => item.backendBookingId === ride.backendBookingId
           ? { ...item, status: "cancelled", backendStatus: "cancelled", cancelReason: reason }
           : item),
         activeRideId: null,
@@ -264,7 +264,7 @@ export function HistoryScreen() {
               <span className="text-right">
                 <span className="block font-semibold tabular">{inr(ride.fare.total + (ride.tipAmount ?? 0))}</span>
                 <Pill tone={ride.status === "cancelled" ? "danger" : ride.status === "completed" ? "ok" : "warn"}>
-                {selectedRide.backendBookingId
+                {ride.backendBookingId
                   ? ride.backendStatus === "requested" ? "Request saved"
                     : ride.backendStatus === "searching" ? "Awaiting Captain match"
                     : ride.backendStatus === "no_captain" ? "No Captain available"
@@ -277,7 +277,7 @@ export function HistoryScreen() {
               </Pill>
               </span>
             </button>
-            {ride.status === "scheduled" && !selectedRide.backendBookingId ? (
+            {ride.status === "scheduled" && !ride.backendBookingId ? (
               <Btn className="mt-3 w-full" variant="soft" onClick={() => start(ride.id)}>
                 {copy("bookNow")}
               </Btn>
