@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { authEnabled, GROK_PROVIDERS, signIn, signOut } from "@/lib/auth/client";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { createMySafetyIncident, createMySupportTicket, getMyProfile, saveMyProfile } from "@/lib/kida/server";
 import { Award, Bell, BriefcaseBusiness, ChevronRight, Coins, CreditCard, Crown, Gift, History, HelpCircle, Package, Settings, ShieldCheck, ShieldAlert } from "lucide-react";
 import { company } from "@/lib/raah/company";
 import { LEGAL } from "@/lib/raah/legal";
@@ -16,6 +19,9 @@ export function AccountScreen() {
   const photo = useRaah((s) => s.photo);
   const open = useRaah((s) => s.open);
   const logout = useRaah((s) => s.logout);
+  const setToast = useRaah((s) => s.setToast);
+  const { user } = useCurrentUserState();
+  const [signingOut, setSigningOut] = useState(false);
   const items: { label: string; screen: "profile" | "payments" | "offers" | "support" | "company" | "settings" | "notes" | "operator" | "call" }[] = [
     { label: copy("profile"), screen: "profile" },
     { label: copy("payments"), screen: "payments" },
@@ -24,6 +30,19 @@ export function AccountScreen() {
     { label: copy("about"), screen: "company" },
     { label: copy("settings"), screen: "settings" },
   ];
+  async function handleLogout() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      if (authEnabled && user && !user.isDevFallback) await signOut();
+      logout();
+    } catch {
+      setToast("Could not sign out of your Kida account. Please retry.");
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
   return (
     <div className="pb-4">
       <Header title={copy("account")} />
@@ -44,8 +63,8 @@ export function AccountScreen() {
             </button>
           ))}
         </div>
-        <Btn variant="line" className="mt-4 w-full" onClick={logout}>
-          {copy("logout")}
+        <Btn variant="line" className="mt-4 w-full" disabled={signingOut} onClick={() => void handleLogout()}>
+          {signingOut ? "Signing out…" : copy("logout")}
         </Btn>
       </div>
     </div>
@@ -71,12 +90,45 @@ export function ProfileScreen() {
   const removePlace = useRaah((s) => s.removePlace);
   const setToast = useRaah((s) => s.setToast);
   const [draft, setDraft] = useState(name);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileNotice, setProfileNotice] = useState("");
   const [contact, setContact] = useState("");
   const [contactPhone, setContactPhone] = useState("");
 
   function pick(target: PlaceTarget) {
     setTarget(target);
     open("destination");
+  }
+
+  async function saveCustomerProfile() {
+    const cleanName = draft.trim();
+    if (cleanName.length < 2 || savingProfile) return;
+    setSavingProfile(true);
+    setProfileNotice("");
+    try {
+      const current = await getMyProfile();
+      const digits = phone.replace(/\\D/g, "");
+      const phoneE164 = digits.length === 10
+        ? `+91${digits}`
+        : current?.phone_e164 ?? null;
+      await saveMyProfile({
+        data: {
+          displayName: cleanName,
+          phoneE164,
+          preferredLanguage: useRaah.getState().lang,
+        },
+      });
+      setName(cleanName);
+      setProfileNotice(phoneE164
+        ? "Profile saved. Your mobile number is not verified by this save."
+        : "Profile saved to your Kida account.");
+    } catch (error) {
+      setProfileNotice(error instanceof Error && error.message === "Unauthorized"
+        ? "Sign in to save your profile to your Kida account."
+        : "Could not save your profile. Please retry.");
+    } finally {
+      setSavingProfile(false);
+    }
   }
 
   function onPhoto(file: File | undefined) {
@@ -170,7 +222,10 @@ export function ProfileScreen() {
         <div className="rounded-2xl border border-line p-3">
           <p className="mb-2 text-sm font-semibold">Edit profile</p>
           <input className={inputClass} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label={copy("namePh")} />
-          <Btn variant="soft" className="mt-2" onClick={() => draft.trim().length > 1 && setName(draft)}>{copy("save")}</Btn>
+          <Btn variant="soft" className="mt-2" disabled={savingProfile || draft.trim().length < 2} onClick={() => void saveCustomerProfile()}>
+            {savingProfile ? "Saving…" : copy("save")}
+          </Btn>
+          {profileNotice ? <p className="mt-2 text-xs text-muted">{profileNotice}</p> : null}
         </div>
 
         <div>
@@ -629,9 +684,58 @@ export function TicketScreen() {
   const copy = useCopy();
   const back = useRaah((s) => s.back);
   const add = useRaah((s) => s.addTicket);
+  const selectedRideId = useRaah((s) => s.selectedRideId);
+  const selectedBooking = useRaah((s) => s.rides.find((ride) => ride.id === selectedRideId));
+  const { user, isPending } = useCurrentUserState();
   const [topic, setTopic] = useState("Booking");
   const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
   const topics = ["Booking", "Payment", "Lost item", "Driver", "Safety", "Other"];
+
+  async function submitTicket() {
+    const message = text.trim();
+    if (message.length < 4 || saving) return;
+    setSaving(true);
+    setNotice("");
+    const topicMap: Record<string, "booking" | "payment" | "lost_item" | "safety" | "other"> = {
+      Booking: "booking",
+      Payment: "payment",
+      "Lost item": "lost_item",
+      Driver: "other",
+      Safety: "safety",
+      Other: "other",
+    };
+    try {
+      const result = await createMySupportTicket({
+        data: {
+          topic: topicMap[topic] ?? "other",
+          message,
+          bookingId: selectedBooking?.backendBookingId ?? null,
+        },
+      });
+      useRaah.setState((state) => ({
+        tickets: [{
+          id: result.id,
+          topic: result.topic,
+          text: result.message,
+          status: "Open",
+          at: result.created_at,
+          backend: true,
+        }, ...state.tickets.filter((ticket) => ticket.id !== result.id)],
+        toast: "Your support request has been saved to your Kida account.",
+      }));
+      setText("");
+      back();
+    } catch (error) {
+      setNotice(error instanceof Error && error.message === "Unauthorized"
+        ? "Sign in to send a support request to your Kida account."
+        : "Your support request could not be saved. Please retry.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div>
       <Header title={copy("ticket")} subtitle={copy("ticketSent")} onBack={back} />
@@ -644,17 +748,20 @@ export function TicketScreen() {
           ))}
         </div>
         <textarea className="min-h-28 w-full rounded-2xl border border-line bg-paper p-3" value={text} onChange={(e) => setText(e.target.value)} aria-label={copy("ticket")} />
-        <Btn
-          className="w-full"
-          disabled={text.trim().length < 4}
-          onClick={() => {
-            add(topic, text.trim());
-            setText("");
-            back();
-          }}
-        >
-          {copy("save")}
+        <Btn className="w-full" disabled={saving || isPending || !user || text.trim().length < 4} onClick={() => void submitTicket()}>
+          {saving ? "Saving request…" : "Send support request"}
         </Btn>
+        {notice ? <p role="alert" className="text-sm text-muted">{notice}</p> : null}
+        {authEnabled && !user && !isPending ? (
+          <div className="space-y-2 rounded-2xl bg-paper p-3">
+            <p className="text-sm font-semibold">Sign in to submit a support request</p>
+            {GROK_PROVIDERS.map((provider) => (
+              <button key={provider.providerId} type="button" onClick={() => void signIn(provider.providerId, { callbackURL: "/" })} className="min-h-10 w-full rounded-xl border border-line bg-surface text-sm font-semibold">
+                Continue with {provider.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );
