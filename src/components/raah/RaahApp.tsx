@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useRaah } from "@/lib/raah/store";
+import { useKidaCustomerSync } from "@/lib/kida/customer-sync";
 import { CustomerScreens, ProtoChrome, TabBar } from "./screens";
 import { Wordmark } from "./art";
 
 export function RaahApp() {
   const [ready, setReady] = useState(false);
+  useKidaCustomerSync(ready);
   useEffect(() => {
     let live = true;
     void Promise.resolve(useRaah.persist.rehydrate()).then(() => {
