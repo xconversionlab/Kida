@@ -7,11 +7,11 @@ Kida is a client-review prototype for an India-wide mobility product: E-Bike Tax
 - `src/routes/` — TanStack Start shell. The customer product lives at `/`.
 - `src/lib/raah/` — types, sample places, fares, languages, company placeholders and browser state.
 - `src/components/raah/` — customer screens, schematic map and the retained operator-desk source (not exposed in the customer-facing app).
-- The client-review journey still uses Zustand browser persistence and a local demo OTP; this preview state is not the production customer account or booking record.
-- Backend V1 adds Better Auth at `/api/auth/*`, a sign-in page at `/login`, and authenticated server functions in `src/lib/kida/server.ts`.
+- The Customer screens still use Zustand for transient UI and demo-only data, but authenticated account bookings and support tickets are read from the server after the Better Auth session resolves.
+- Better Auth is available at `/api/auth/*`, with account sign-in at `/login`. Customer booking creation, booking history, cancellation, profile save, support ticket submission and SOS incident recording call authenticated server functions in `src/lib/kida/server.ts`.
 - Neon Postgres is used when the deployment supplies `DATABASE_URL`; PGlite remains the in-memory preview fallback. Schema lives in ordered `migrations/*.sql` files.
-- V1 stores customer profiles, customer-owned booking requests, booking audit events, support tickets and safety incident reports. It does not yet connect those endpoints to the Customer screens.
-- Existing Better Auth sign-in is Google/X; the customer phone/OTP UI still uses a demonstration code and needs a production OTP provider before launch.
+- Backend-owned booking and ticket rows are not written into browser localStorage; they are loaded for the current signed-in account.
+- Existing Better Auth sign-in is Google/X. The customer phone/OTP UI still uses the demonstration code and is not a real login method; a production phone OTP provider is still required before phone-based launch.
 - Company CIN, GSTIN, office, phone and email are placeholders in `src/lib/raah/company.ts`, ready to be replaced by verified client-owned information.
 
 ## Android APK (current deliverable)
