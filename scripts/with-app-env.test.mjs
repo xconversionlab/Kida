@@ -89,7 +89,7 @@ test("an explicit false override disables the default auth state", async () => {
     [WRAPPER, process.execPath, "-e", PRINT_FLAG],
     { env: { ...process.env, VITE_AUTH_ENABLED: "false" } },
   );
-  assert.equal(stdout, "true");
+  assert.equal(stdout, "false");
 });
 
 test("the wrapper propagates the command's exit code", async () => {
