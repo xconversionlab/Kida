@@ -228,10 +228,20 @@ export function ProfileScreen() {
           <ChevronRight className="size-4 text-muted" />
         </button>
 
+        {authEnabled && !user ? (
+          <div className="space-y-2 rounded-2xl bg-primary-soft p-3">
+            <p className="text-sm font-semibold">Sign in to save your Kida profile</p>
+            {GROK_PROVIDERS.map((provider) => (
+              <button key={provider.providerId} type="button" onClick={() => void signIn(provider.providerId, { callbackURL: "/" })} className="min-h-10 w-full rounded-xl border border-line bg-surface text-sm font-semibold">
+                Continue with {provider.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="rounded-2xl border border-line p-3">
           <p className="mb-2 text-sm font-semibold">Edit profile</p>
           <input className={inputClass} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label={copy("namePh")} />
-          <Btn variant="soft" className="mt-2" disabled={savingProfile || draft.trim().length < 2} onClick={() => void saveCustomerProfile()}>
+          <Btn variant="soft" className="mt-2" disabled={savingProfile || draft.trim().length < 2 || (authEnabled && !user)} onClick={() => void saveCustomerProfile()}>
             {savingProfile ? "Saving…" : copy("save")}
           </Btn>
           {profileNotice ? <p className="mt-2 text-xs text-muted">{profileNotice}</p> : null}
