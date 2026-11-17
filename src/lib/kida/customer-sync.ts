@@ -37,7 +37,7 @@ type BackendTicket = Awaited<ReturnType<typeof listMySupportTickets>>[number];
 const VEHICLES = new Set<VehicleId>(["bike", "auto", "mini", "sedan", "xl"]);
 const PAY_METHODS = new Set<PayMethod>(["upi", "qr", "credit", "debit", "netbanking", "cash"]);
 const SELECTION_SOURCES = new Set<Selection["source"]>([
-  "saved", "recent", "search", "map", "gps", "operator", "sample", "google",
+  "saved", "recent", "search", "map", "gps", "operator", "sample", "google", "osm",
 ]);
 
 function text(value: JsonValue | undefined): string {
@@ -58,9 +58,9 @@ function selectionFromBackend(value: BackendSelection, kind: "pickup" | "drop"):
   const isGoogle = source === "google";
   const lat = number(value.lat, knownPlace?.lat ?? 0);
   const lng = number(value.lng, knownPlace?.lng ?? 0);
-  const label = text(value.label) || knownPlace?.name || (isGoogle ? "Google Maps location" : kind === "pickup" ? "Saved pickup" : "Saved destination");
+  const label = text(value.label) || knownPlace?.name || (isGoogle ? "Saved map location" : kind === "pickup" ? "Saved pickup" : "Saved destination");
   const line = text(value.line) || knownPlace?.district || (isGoogle
-    ? "Google place reference saved; address is not cached"
+    ? "Older map reference saved; address is not cached"
     : "Trip location saved with your booking");
 
   return {
