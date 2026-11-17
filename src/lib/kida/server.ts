@@ -27,6 +27,8 @@ const createBookingSchema = z.object({
   clientRequestId: z.string().uuid(),
   serviceMode: z.enum(["ride", "parcel", "intercity", "rental", "airport", "pet", "transit", "shared"]).default("ride"),
   vehicleId: z.enum(["bike", "auto", "mini", "sedan", "xl"]),
+  paymentMethod: z.enum(["upi", "qr", "credit", "debit", "netbanking", "cash"]).default("cash"),
+  womenDriverRequested: z.boolean().default(false),
   pickup: selectionSchema,
   dropoff: selectionSchema,
   stops: z.array(selectionSchema).max(3).default([]),
@@ -80,6 +82,8 @@ type BookingRow = {
   stops: { [key: string]: JsonValue }[];
   scheduled_for: string | null;
   client_fare_preview: { [key: string]: JsonValue } | null;
+  payment_method: string;
+  women_driver_requested: boolean;
   currency: string;
   cancel_reason: string | null;
   created_at: string;
@@ -180,9 +184,10 @@ export const createMyBooking = createServerFn({ method: "POST" })
       `with inserted as (
          insert into public.kida_bookings
            (user_id, client_request_id, service_mode, vehicle_id,
+            payment_method, women_driver_requested,
             pickup, dropoff, stops, scheduled_for, client_fare_preview)
-         values ($1, $2::uuid, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb,
-                 $8::timestamptz, $9::jsonb)
+         values ($1, $2::uuid, $3, $4, $5, $6,
+                 $7::jsonb, $8::jsonb, $9::jsonb, $10::timestamptz, $11::jsonb)
          on conflict (user_id, client_request_id) do nothing
          returning id, user_id, client_request_id, status, created_at
        ),
@@ -209,6 +214,8 @@ export const createMyBooking = createServerFn({ method: "POST" })
         data.clientRequestId,
         data.serviceMode,
         data.vehicleId,
+        data.paymentMethod,
+        data.womenDriverRequested,
         pickup,
         dropoff,
         stops,
@@ -228,6 +235,7 @@ export const listMyBookings = createServerFn({ method: "GET" })
       `select id::text as id, client_request_id::text as client_request_id,
               service_mode, vehicle_id, status, pickup, dropoff, stops,
               scheduled_for::text as scheduled_for, client_fare_preview,
+              payment_method, women_driver_requested,
               currency, cancel_reason, created_at::text as created_at,
               updated_at::text as updated_at
          from public.kida_bookings
