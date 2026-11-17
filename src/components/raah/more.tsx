@@ -107,7 +107,7 @@ export function ProfileScreen() {
     setProfileNotice("");
     try {
       const current = await getMyProfile();
-      const digits = phone.replace(/\\D/g, "");
+      const digits = phone.replace(/\D/g, "");
       const phoneE164 = digits.length === 10
         ? `+91${digits}`
         : current?.phone_e164 ?? null;
