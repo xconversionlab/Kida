@@ -57,6 +57,8 @@ const incidentSchema = z.object({
   description: z.string().trim().max(2000).nullable().optional(),
 }).strict();
 
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
 type ProfileRow = {
   user_id: string;
   display_name: string;
@@ -73,11 +75,11 @@ type BookingRow = {
   service_mode: string;
   vehicle_id: string;
   status: BookingStatus;
-  pickup: Record<string, unknown>;
-  dropoff: Record<string, unknown>;
-  stops: Record<string, unknown>[];
+  pickup: { [key: string]: JsonValue };
+  dropoff: { [key: string]: JsonValue };
+  stops: { [key: string]: JsonValue }[];
   scheduled_for: string | null;
-  client_fare_preview: Record<string, unknown> | null;
+  client_fare_preview: { [key: string]: JsonValue } | null;
   currency: string;
   cancel_reason: string | null;
   created_at: string;
@@ -265,7 +267,7 @@ export const getMyBookingEvents = createServerFn({ method: "GET" })
       event_type: string;
       from_status: string | null;
       to_status: string | null;
-      metadata: Record<string, unknown>;
+      metadata: { [key: string]: JsonValue };
       created_at: string;
     }>(
       `select e.id, e.event_type, e.from_status, e.to_status, e.metadata,
