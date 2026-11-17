@@ -121,19 +121,19 @@ function CancelBox() {
 
   async function cancel(reason: string) {
     if (!ride || saving) return;
-    if (!ride.backendBookingId) {
+    if (!selectedRide.backendBookingId) {
       cancelLocal(reason);
       return;
     }
     setSaving(true);
     try {
-      const result = await cancelMyBooking({ data: { bookingId: ride.backendBookingId, reason } });
+      const result = await cancelMyBooking({ data: { bookingId: selectedRide.backendBookingId, reason } });
       if (!result) {
         setToast("This booking can only be cancelled before Captain acceptance.");
         return;
       }
       useRaah.setState((state) => ({
-        rides: state.rides.map((item) => item.backendBookingId === ride.backendBookingId
+        rides: state.rides.map((item) => item.backendBookingId === selectedRide.backendBookingId
           ? { ...item, status: "cancelled", backendStatus: "cancelled", cancelReason: reason }
           : item),
         activeRideId: null,
@@ -264,7 +264,7 @@ export function HistoryScreen() {
               <span className="text-right">
                 <span className="block font-semibold tabular">{inr(ride.fare.total + (ride.tipAmount ?? 0))}</span>
                 <Pill tone={ride.status === "cancelled" ? "danger" : ride.status === "completed" ? "ok" : "warn"}>
-                {ride.backendBookingId
+                {selectedRide.backendBookingId
                   ? ride.backendStatus === "requested" ? "Request saved"
                     : ride.backendStatus === "searching" ? "Awaiting Captain match"
                     : ride.backendStatus === "no_captain" ? "No Captain available"
@@ -277,7 +277,7 @@ export function HistoryScreen() {
               </Pill>
               </span>
             </button>
-            {ride.status === "scheduled" && !ride.backendBookingId ? (
+            {ride.status === "scheduled" && !selectedRide.backendBookingId ? (
               <Btn className="mt-3 w-full" variant="soft" onClick={() => start(ride.id)}>
                 {copy("bookNow")}
               </Btn>
@@ -317,21 +317,22 @@ export function RideDetail() {
   const [cancelling, setCancelling] = useState(false);
   const [cancelNotice, setCancelNotice] = useState("");
   if (!ride) return null;
+  const selectedRide = ride;
 
   async function cancelBookingRequest() {
-    if (!ride.backendBookingId || cancelling) return;
+    if (!selectedRide.backendBookingId || cancelling) return;
     setCancelling(true);
     setCancelNotice("");
     try {
       const result = await cancelMyBooking({
-        data: { bookingId: ride.backendBookingId, reason: "Cancelled by customer" },
+        data: { bookingId: selectedRide.backendBookingId, reason: "Cancelled by customer" },
       });
       if (!result) {
         setCancelNotice("This booking can only be cancelled while it is awaiting a Captain.");
         return;
       }
       useRaah.setState((state) => ({
-        rides: state.rides.map((item) => item.backendBookingId === ride.backendBookingId
+        rides: state.rides.map((item) => item.backendBookingId === selectedRide.backendBookingId
           ? { ...item, status: "cancelled", backendStatus: "cancelled", cancelReason: "Cancelled by customer" }
           : item),
         activeRideId: null,
@@ -347,7 +348,7 @@ export function RideDetail() {
   async function submitRideReport(kind: "issue" | "lost", message: string) {
     const clean = message.trim();
     if (clean.length < 3 || reporting) return;
-    if (!ride.backendBookingId) {
+    if (!selectedRide.backendBookingId) {
       report(kind, clean);
       if (kind === "lost") setLost("");
       else setIssue("");
@@ -358,7 +359,7 @@ export function RideDetail() {
     try {
       const result = await createMySupportTicket({
         data: {
-          bookingId: ride.backendBookingId,
+          bookingId: selectedRide.backendBookingId,
           topic: kind === "lost" ? "lost_item" : "booking",
           message: clean,
         },
@@ -386,8 +387,8 @@ export function RideDetail() {
     <div className="pb-8">
       <Header title={copy("receipt")} subtitle={new Date(ride.createdAt).toLocaleString("en-IN")} onBack={back} />
       <div className="space-y-3 px-4">
-        <p className="text-sm text-muted">{ride.backendBookingId ? "Customer booking request saved to your Kida account" : ride.source === "call" ? "Booked by the call desk · prototype" : "Booked in the app · prototype"}</p>
-        {ride.backendBookingId ? (
+        <p className="text-sm text-muted">{selectedRide.backendBookingId ? "Customer booking request saved to your Kida account" : ride.source === "call" ? "Booked by the call desk · prototype" : "Booked in the app · prototype"}</p>
+        {selectedRide.backendBookingId ? (
           <div className="space-y-2 rounded-xl bg-primary-soft p-3">
             <p className="text-xs text-muted">Current backend status: {ride.backendStatus?.replaceAll("_", " ")}. Captain matching, live tracking and payment are not connected yet.</p>
             {ride.backendStatus === "requested" || ride.backendStatus === "searching" ? (
