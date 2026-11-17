@@ -38,9 +38,9 @@ interface OverpassResponse {
   elements?: OverpassElement[];
 }
 
-const PHOTON_BASE = (import.meta.env.VITE_KIDA_PHOTON_URL as string | undefined) || "https://photon.komoot.io";
-const OVERPASS_URL = (import.meta.env.VITE_KIDA_OVERPASS_URL as string | undefined) || "https://overpass-api.de/api/interpreter";
-const OSRM_BASE = (import.meta.env.VITE_KIDA_OSRM_URL as string | undefined) || "https://router.project-osrm.org";
+const PHOTON_BASE = (import.meta.env.VITE_KIDA_PHOTON_URL as string | undefined) || (import.meta.env.DEV ? "https://photon.komoot.io" : "");
+const OVERPASS_URL = (import.meta.env.VITE_KIDA_OVERPASS_URL as string | undefined) || (import.meta.env.DEV ? "https://overpass-api.de/api/interpreter" : "");
+const OSRM_BASE = (import.meta.env.VITE_KIDA_OSRM_URL as string | undefined) || (import.meta.env.DEV ? "https://router.project-osrm.org" : "");
 const OSRM_PROFILE = (import.meta.env.VITE_KIDA_OSRM_PROFILE as string | undefined) || "driving";
 const REQUEST_TIMEOUT_MS = 10000;
 
@@ -130,6 +130,7 @@ export async function searchOsmPlaces(
 ): Promise<OsmPlaceOption[]> {
   const trimmed = query.trim();
   if (trimmed.length < 3) return [];
+  if (!PHOTON_BASE) throw new Error("Photon is not configured for this environment.");
   const cacheKey = `${trimmed.toLowerCase()}:${center ? `${center.lat.toFixed(3)},${center.lng.toFixed(3)}` : "india"}:${language}`;
   const cached = searchCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.values;
@@ -156,6 +157,7 @@ export async function reverseGeocodeOsm(
   language = "en",
   signal?: AbortSignal,
 ): Promise<OsmPlaceOption> {
+  if (!PHOTON_BASE) throw new Error("Photon is not configured for this environment.");
   const url = new URL("/reverse", PHOTON_BASE);
   url.searchParams.set("lat", String(point.lat));
   url.searchParams.set("lon", String(point.lng));
@@ -210,6 +212,7 @@ export async function getNearbyOsmPlaces(
   const cached = nearbyCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.values;
 
+  if (!OVERPASS_URL) throw new Error("Overpass is not configured for this environment.");
   const radiusMeters = 7000;
   const query = `[out:json][timeout:10];(nwr(around:${radiusMeters},${center.lat},${center.lng})[name];);out center tags 100;`;
   const timed = withTimeout(signal, 12000);
@@ -242,6 +245,7 @@ export async function getOsmDrivingRoute(
   _vehicle: "bike" | "auto" | "mini" | "sedan" | "xl",
 ): Promise<DrivingRoutePreview> {
   if (points.length < 2) throw new Error("A pickup and destination are required.");
+  if (!OSRM_BASE) throw new Error("OSRM is not configured for this environment.");
   const cacheKey = `${OSRM_PROFILE}:${points.map((point) => `${point.lat.toFixed(6)},${point.lng.toFixed(6)}`).join("|")}`;
   const cached = routeCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) return cached.value;
