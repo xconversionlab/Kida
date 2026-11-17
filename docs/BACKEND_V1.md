@@ -15,6 +15,7 @@ The backend uses the repository's existing server-only PostgreSQL layer:
 
 - Better Auth is enabled at `/api/auth/*`.
 - A Kida account sign-in page is available at `/login`.
+- The Customer app uses the signed-in Better Auth session before creating server-backed bookings or saving support/safety reports.
 - This repository's existing identity integration supports Google and X. Email/password remains disabled.
 - Every data endpoint below uses `authMiddleware`; the user ID comes from the verified session, never from a client argument.
 - Newly created identities receive a least-privilege `customer` role and a Kida profile. Elevated roles are not assignable through customer endpoints.
@@ -24,17 +25,20 @@ The backend uses the repository's existing server-only PostgreSQL layer:
 ### Customer profile
 
 - Read the signed-in user's profile.
-- Update display name, preferred language and an E.164-formatted contact number.
+- The Customer profile screen reads and saves the display name, preferred language and an E.164-formatted contact number.
 - Changing the contact number clears any prior verification timestamp. No API in V1 can set `phone_verified_at`.
+- The profile save explicitly tells the customer that this does not verify their phone number.
 
 ### Customer booking records
 
-- Create a booking request with an idempotency key.
-- Retrieve a customer's own booking list and individual booking.
-- Retrieve the chronological event history for an owned booking.
-- Cancel a booking only while it is `requested` or `searching`.
+- The Customer confirmation screen creates a backend booking request with an idempotency key after the account session is verified.
+- Vehicle, payment-method preference, woman-Captain preference, pickup, dropoff, up to three stops, optional schedule and an explicitly untrusted fare preview are stored.
+- Customer app sync loads the account-owned booking list into History and the booking detail screen.
+- Backend-owned bookings are excluded from browser localStorage and fetched again only for the current signed-in account.
+- The Customer can cancel a backend booking only while it is `requested` or `searching`; the server checks ownership and status.
 - Creation and initial audit event are written together in one SQL statement.
 - Repeating the same client request ID returns the existing booking rather than making a duplicate.
+- Backend requests appear as requests saved to the account; they do not trigger the local simulated Captain-matching sequence.
 
 Booking lifecycle:
 
@@ -44,8 +48,10 @@ Alternative terminal outcomes are `cancelled`, `expired` and `no_captain`. The p
 
 ### Support and safety intake
 
-- Create and list support tickets for the signed-in user.
-- Record safety incident reports against the user's own booking or without a booking association.
+- The Customer support/claims form saves support tickets for the signed-in user, optionally linked to that user's booking.
+- The ride detail issue/lost-item report forms save account-backed support tickets.
+- The SOS confirmation screen can record a safety incident against the user's own booking or without a booking association.
+- Support tickets are refreshed into the account's customer UI when its session is loaded.
 
 These APIs store records only. They do **not** dispatch a Captain, call emergency services, send an SOS, contact a staffed operations centre, issue a refund or notify a support agent.
 
@@ -62,12 +68,12 @@ These APIs store records only. They do **not** dispatch a Captain, call emergenc
 
 This is a backend foundation, not a production ride-hailing launch.
 
-1. The Customer app has not yet been switched from its local Zustand booking store to these endpoints.
-2. The phone OTP screen still accepts the demo code `482913`; choose and integrate a production OTP identity provider before using phone numbers as account identity.
-3. No Captain app, KYC approval, online availability, matching/dispatch, driver location stream, trip PIN verification or staffed operator console is connected.
-4. Fare rates in the Customer app are sample values. No server-approved city/vehicle rate card or final fare calculation is active.
-5. No payment gateway, wallet, payouts, refunds or financial ledger is active.
-6. Support and safety submissions are persisted but have no staffed responder or emergency-service integration.
+1. The app's local OTP screen still accepts the demonstration code `482913`. It does not create a Better Auth account and must not be treated as phone authentication. The connected backend booking path requires a real Google/X Better Auth session. A production phone/SMS OTP provider still needs to be selected and integrated.
+2. No Captain app, KYC approval, online availability, matching/dispatch, driver location stream, trip PIN verification or staffed operator console is connected. Backend booking requests currently stop at `requested`; they do not notify or match a Captain.
+3. Fare rates in the Customer app are sample values. The stored fare is a client preview, not a server-approved city/vehicle rate card or final fare calculation.
+4. The selected payment method is stored as a preference only. No payment gateway, wallet, payout, refund or financial ledger is active.
+5. Support and SOS incident submissions are stored for the signed-in account but have no staffed responder or emergency-service integration. The customer must still call 112 directly when emergency help is needed.
+6. The Android app is still a web-backed preview shell; the backend endpoints are deployed with the server application only after the feature is merged and its production database/auth environment is provisioned.
 7. City/vehicle operating eligibility, permits, insurance, state-by-state rules and launch approvals still need formal configuration and review. Do not enable a vehicle category for public trips until its legal and operational approvals are confirmed.
 8. The deployment must have its server database and Better Auth provider configuration provisioned. Do not expose `DATABASE_URL`, Better Auth secrets or any server secret in browser environment variables.
 
@@ -75,6 +81,11 @@ This is a backend foundation, not a production ride-hailing launch.
 
 - `migrations/0001_auth.sql` — generated Better Auth schema, copied unchanged from the repository's auth migration.
 - `migrations/0002_kida_core.sql` — Kida profiles, roles, bookings, events, support and safety tables.
+- `migrations/0003_customer_booking_preferences.sql` — payment preference and woman-Captain request flags.
+- `src/lib/kida/customer-sync.ts` — session-scoped loading and mapping of account-owned bookings and tickets into Customer UI state.
+- `src/components/raah/book.tsx` — authenticated booking request creation.
+- `src/components/raah/more.tsx` — profile save, support ticket and SOS incident submission.
+- `src/components/raah/ride.tsx` — booking history, cancellation and booking-linked support reports.
 - `src/lib/kida/server.ts` — authenticated server functions.
 - `src/lib/kida/booking-state.ts` — booking transition rules.
 - `src/lib/kida/booking-state.test.ts` — booking transition tests.
