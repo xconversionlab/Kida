@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createMyBooking } from "@/lib/kida/server";
+import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getPlace } from "@/lib/raah/places";
 import { getGoogleDrivingRoute, hasGoogleMapsKey, type DrivingRoutePreview } from "@/lib/raah/googleMaps";
 import { payLabel, promoReason, vehicleLabel } from "@/lib/raah/labels";
@@ -249,8 +252,53 @@ export function ConfirmScreen() {
   const confirm = useRaah((s) => s.confirmBooking);
   const trip = useTripKm();
   const place = getPlace(pickup.placeId);
+  const { user, isPending: authPending } = useCurrentUserState();
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const requestId = useRef<string | null>(null);
   if (!drop || !place || !trip) return null;
   const fare = quoteForTrip(vehicle, trip.km, place.kind, useRaah.getState().promo, trip.route);
+
+  async function saveBooking() {
+    if (!user || saving) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      requestId.current ??= crypto.randomUUID();
+      const result = await createMyBooking({
+        data: {
+          clientRequestId: requestId.current,
+          serviceMode: "ride",
+          vehicleId: vehicle,
+          paymentMethod: payment,
+          womenDriverRequested: womenPreference,
+          pickup,
+          dropoff: drop,
+          stops: trip.stops,
+          scheduledFor: when === "now" ? null : new Date(when).toISOString(),
+          farePreview: {
+            km: Math.round(trip.km * 10) / 10,
+            minutes: Math.ceil(fare.minutes),
+            total: Math.round(fare.total),
+            currency: "INR",
+          },
+        },
+      });
+      if (result.status !== "requested") {
+        throw new Error("The booking was saved with an unexpected status. Refresh your booking history.");
+      }
+      requestId.current = null;
+      confirm(trip.route?.distanceKm, trip.route?.durationMinutes, trip.route?.path, {
+        id: result.id,
+        status: "requested",
+      });
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Your booking could not be saved. Please retry.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="pb-8">
       <Header title={copy("confirmRide")} subtitle={copy("proto")} onBack={back} />
@@ -274,9 +322,32 @@ export function ConfirmScreen() {
         <button type="button" aria-pressed={womenPreference} onClick={()=>setWomenPreference(!womenPreference)} className={`flex min-h-14 w-full items-center justify-between rounded-2xl border px-3 text-left ${womenPreference?"border-primary bg-primary-soft":"border-line"}`}>
           <span><span className="block text-sm font-semibold">Request a woman driver</span><span className="block text-xs text-muted">Preference only · subject to availability and launch support</span></span><span className={`h-6 w-11 rounded-full p-1 ${womenPreference?"bg-primary":"bg-line"}`}><span className={`block size-4 rounded-full bg-white ${womenPreference?"ml-5":""}`}/></span>
         </button>
-        <Btn className="w-full" disabled={trip.routeState === "loading"} onClick={() => confirm(trip.route?.distanceKm, trip.route?.durationMinutes, trip.route?.path)}>
-          {when === "now" ? copy("confirmRide") : copy("scheduleTitle")}
-        </Btn>
+        {authPending ? (
+          <p className="rounded-2xl bg-paper px-3 py-3 text-sm text-muted">Checking your Kida account…</p>
+        ) : authEnabled && !user ? (
+          <div className="space-y-3 rounded-2xl border border-primary/30 bg-primary-soft p-3">
+            <div>
+              <p className="font-semibold">Sign in to save this booking</p>
+              <p className="mt-1 text-sm text-muted">Your ride request will be stored under your Kida account. Use a verified account session to continue.</p>
+            </div>
+            {GROK_PROVIDERS.map((provider) => (
+              <button
+                key={provider.providerId}
+                type="button"
+                onClick={() => void signIn(provider.providerId, { callbackURL: "/" })}
+                className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-sm font-semibold"
+              >
+                Continue with {provider.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Btn className="w-full" disabled={saving || trip.routeState === "loading"} onClick={() => void saveBooking()}>
+            {saving ? "Saving booking…" : when === "now" ? copy("confirmRide") : copy("scheduleTitle")}
+          </Btn>
+        )}
+        {saveError ? <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">{saveError}</p> : null}
+        <p className="text-xs text-muted">This records your booking request and fare estimate. Captain matching, live tracking and payment are not connected yet.</p>
       </div>
     </div>
   );
