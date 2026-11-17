@@ -183,6 +183,8 @@ export interface Ride {
   /** Present only for rows loaded from the authenticated customer backend. */
   backendBookingId?: string;
   backendStatus?: "requested" | "searching" | "accepted" | "captain_arriving" | "arrived" | "in_progress" | "completed" | "cancelled" | "expired" | "no_captain";
+  /** The account-backed sixth-ride reward is reserved/applied to this booking. */
+  isCustomerRewardRide?: boolean;
 }
 
 export interface SavedPlace {
