@@ -3,7 +3,7 @@ import { createMyBooking } from "@/lib/kida/server";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getPlace } from "@/lib/raah/places";
-import { getGoogleDrivingRoute, hasGoogleMapsKey, type DrivingRoutePreview } from "@/lib/raah/googleMaps";
+import { getOsmDrivingRoute, type DrivingRoutePreview } from "@/lib/raah/osmMaps";
 import { payLabel, promoReason, vehicleLabel } from "@/lib/raah/labels";
 import { BOOKABLE_VEHICLES, calculateFareAllocation, inr, kmBetween, quoteRide, resolvePromo, type PromoResult } from "@/lib/raah/pricing";
 import { CUSTOMER_FREE_RIDE_CODE, getCustomerRewardProgress, isEligibleCustomerFreeRide } from "@/lib/raah/rewards";
@@ -27,7 +27,7 @@ function useTripKm() {
   useEffect(() => {
     let active = true;
     setRoute(null);
-    if (points.length < 2 || !hasGoogleMapsKey) {
+    if (points.length < 2) {
       setRouteState("approximate");
       return () => { active = false; };
     }
@@ -37,7 +37,7 @@ function useTripKm() {
       const [lat, lng] = value.split(",").map(Number);
       return { lat, lng };
     });
-    void getGoogleDrivingRoute(requestPoints, vehicle)
+    void getOsmDrivingRoute(requestPoints, vehicle)
       .then((result) => {
         if (!active) return;
         setRoute(result);
@@ -65,12 +65,12 @@ function quoteForTrip(vehicle: VehicleId, km: number, kind: Parameters<typeof qu
 
 function RouteAccuracy({ trip }: { trip: { route: DrivingRoutePreview | null; routeState: "loading" | "road" | "approximate"; km: number } }) {
   if (trip.routeState === "loading") {
-    return <p className="text-xs text-muted">Calculating road distance and traffic-aware ETA…</p>;
+    return <p className="text-xs text-muted">Calculating road distance and estimated travel time…</p>;
   }
   if (trip.routeState === "road" && trip.route) {
-    return <p className="text-xs text-muted">Google road route · {trip.km} km · traffic-aware ETA {trip.route.durationMinutes} min</p>;
+    return <p className="text-xs text-muted">OpenStreetMap road route · {trip.km} km · estimated travel time {trip.route.durationMinutes} min (no live traffic)</p>;
   }
-  return <p className="text-xs text-muted">Approximate straight-line distance · actual road distance, ETA and final fare require Google Routes setup</p>;
+  return <p className="text-xs text-muted">Approximate straight-line distance only · OSRM road routing is temporarily unavailable</p>;
 }
 
 export function VehiclesScreen() {
@@ -166,7 +166,9 @@ export function FareScreen() {
   if (!trip) return null;
 
   const rewardProgress = getCustomerRewardProgress(rides);
-  const rewardApplied = isEligibleCustomerFreeRide(rewardProgress, vehicle, trip.km);
+  const isCabVehicle = vehicle === "mini" || vehicle === "sedan" || vehicle === "xl";
+  const rewardRouteNeedsVerification = rewardProgress.rewardAvailable && isCabVehicle && trip.routeState !== "road";
+  const rewardApplied = trip.routeState === "road" && isEligibleCustomerFreeRide(rewardProgress, vehicle, trip.km);
   const standardFare = quoteForTrip(vehicle, trip.km, trip.place.kind, null, trip.route);
   const fare = rewardApplied
     ? { ...standardFare, discount: standardFare.total, total: 0, promoCode: CUSTOMER_FREE_RIDE_CODE }
@@ -227,8 +229,10 @@ export function FareScreen() {
         )}
         {rewardProgress.rewardPending ? (
           <p className="rounded-xl bg-paper p-3 text-sm text-muted">Your sixth-ride reward is already attached to a booking. Complete or cancel that booking before another reward can be used.</p>
+        ) : rewardRouteNeedsVerification ? (
+          <p className="rounded-xl bg-paper p-3 text-sm text-muted">Your free cab ride is available, but Kida must verify the actual road distance before applying it. Please retry when road routing is available.</p>
         ) : rewardProgress.rewardAvailable && !rewardApplied ? (
-          <p className="rounded-xl bg-paper p-3 text-sm text-muted">You have a free cab ride available. Choose a cab route strictly below 7 km to use it; a 7 km or longer trip remains paid.</p>
+          <p className="rounded-xl bg-paper p-3 text-sm text-muted">{trip.km >= 7 ? "This route is 7 km or longer, so it remains paid. Your free cab ride stays available for a later qualifying route below 7 km." : "You have a free cab ride available. Choose a cab route strictly below 7 km to use it."}</p>
         ) : null}
         <p className="text-xs text-muted">{copy("waitingNote")}</p>
         <div className="flex gap-2">
@@ -252,7 +256,7 @@ export function FareScreen() {
             onChange={(event) => setWhen(event.target.value || "now")}
           />
         </label>
-        <Btn className="w-full" disabled={blocked || invalidSchedule || trip.routeState === "loading"} onClick={() => open("confirm")}>
+        <Btn className="w-full" disabled={blocked || invalidSchedule || trip.routeState === "loading" || rewardRouteNeedsVerification} onClick={() => open("confirm")}>
           {copy("continue")}
         </Btn>
       </div>
@@ -291,7 +295,9 @@ export function ConfirmScreen() {
   if (!drop || !place || !trip) return null;
   const bookingTrip = trip;
   const rewardProgress = getCustomerRewardProgress(rides);
-  const rewardApplied = isEligibleCustomerFreeRide(rewardProgress, vehicle, bookingTrip.km);
+  const isCabVehicle = vehicle === "mini" || vehicle === "sedan" || vehicle === "xl";
+  const rewardRouteNeedsVerification = rewardProgress.rewardAvailable && isCabVehicle && bookingTrip.routeState !== "road";
+  const rewardApplied = bookingTrip.routeState === "road" && isEligibleCustomerFreeRide(rewardProgress, vehicle, bookingTrip.km);
   const standardFare = quoteForTrip(vehicle, bookingTrip.km, place.kind, null, bookingTrip.route);
   const fare = rewardApplied
     ? { ...standardFare, discount: standardFare.total, total: 0, promoCode: CUSTOMER_FREE_RIDE_CODE }
@@ -299,7 +305,7 @@ export function ConfirmScreen() {
   const regularTotal = rewardApplied ? standardFare.total : fare.total;
 
   async function saveBooking() {
-    if (!user || saving) return;
+    if (!user || saving || rewardRouteNeedsVerification) return;
     setSaving(true);
     setSaveError("");
     try {
@@ -388,12 +394,13 @@ export function ConfirmScreen() {
             ))}
           </div>
         ) : (
-          <Btn className="w-full" disabled={saving || trip.routeState === "loading"} onClick={() => void saveBooking()}>
+          <Btn className="w-full" disabled={saving || trip.routeState === "loading" || rewardRouteNeedsVerification} onClick={() => void saveBooking()}>
             {saving ? "Saving booking…" : when === "now" ? copy("confirmRide") : copy("scheduleTitle")}
           </Btn>
         )}
         {saveError ? <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">{saveError}</p> : null}
-        <p className="text-xs text-muted">This records your booking request and fare estimate. Captain matching, live tracking and payment are not connected yet. Final free-ride distance eligibility must be verified against the live road route before launch.</p>
+        {rewardRouteNeedsVerification ? <p className="rounded-xl bg-paper p-3 text-sm text-muted">Your free-ride reward is ready, but the road-distance service is unavailable. Kida will not apply or charge the free ride until the route can be verified.</p> : null}
+        <p className="text-xs text-muted">This records your booking request and fare estimate. Road distance is estimated from OpenStreetMap road data; live traffic, Captain matching, live tracking and payment are not connected yet.</p>
       </div>
     </div>
   );
