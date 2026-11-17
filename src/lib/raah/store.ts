@@ -208,6 +208,7 @@ interface RaahState {
   setName: (name: string) => void;
   setPhoto: (photo: string) => void;
   setPlaceTarget: (target: PlaceTarget) => void;
+  setPickupLocation: (selection: Selection) => void;
   setServiceMode: (mode: ServiceMode) => void;
   choose: (selection: Selection) => void;
   removeStop: (index: number) => void;
@@ -337,6 +338,7 @@ export const useRaah = create<RaahState>()(
       },
       setPhoto: (photo) => set({ photo }),
       setPlaceTarget: (placeTarget) => set({ placeTarget }),
+      setPickupLocation: (pickup) => set({ pickup }),
       setServiceMode: (serviceMode) => set({ serviceMode, drop: serviceMode === "ride" ? get().drop : null, stops: serviceMode === "ride" ? get().stops : [] }),
       choose: (selection) => {
         const s = get();

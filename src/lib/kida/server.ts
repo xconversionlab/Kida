@@ -3,6 +3,7 @@ import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { BookingStatus } from "./booking-state";
+import { parseOsrmRouteResponse } from "./osrm-route";
 
 const languageSchema = z.enum(["en", "hi", "ta", "te", "kn", "ml", "bn", "mr", "gu", "pa"]);
 
@@ -13,7 +14,7 @@ const selectionSchema = z.object({
   line: z.string().trim().max(320).optional().default(""),
   lat: z.number().finite().min(-90).max(90),
   lng: z.number().finite().min(-180).max(180),
-  source: z.enum(["saved", "recent", "search", "map", "gps", "operator", "sample", "google"]),
+  source: z.enum(["saved", "recent", "search", "map", "gps", "operator", "sample", "google", "osm"]),
 }).strict();
 
 const farePreviewSchema = z.object({
@@ -23,6 +24,34 @@ const farePreviewSchema = z.object({
   regularTotal: z.number().int().min(0).max(1000000).optional(),
   currency: z.literal("INR").default("INR"),
 }).strict();
+
+async function getVerifiedRoadDistanceKm(points: Array<{ lat: number; lng: number }>): Promise<number> {
+  if (points.length < 2) throw new Error("A pickup and destination are required to verify this reward.");
+
+  const configuredBaseUrl = process.env.KIDA_OSRM_BASE_URL;
+  if (!configuredBaseUrl) {
+    throw new Error("KIDA_OSRM_BASE_URL is not configured for this environment.");
+  }
+  const baseUrl = configuredBaseUrl.endsWith("/") ? configuredBaseUrl.slice(0, -1) : configuredBaseUrl;
+  const coordinates = points.map((point) => `${point.lng},${point.lat}`).join(";");
+  const url = `${baseUrl}/route/v1/driving/${coordinates}?overview=false&steps=false`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error("Routing service unavailable.");
+    const route = parseOsrmRouteResponse(await response.json());
+    return route.distanceKm;
+  } catch {
+    throw new Error("Kida could not verify the road distance for your free ride. Please retry when routing is available.");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 const createBookingSchema = z.object({
   clientRequestId: z.string().uuid(),
@@ -192,8 +221,16 @@ export const createMyBooking = createServerFn({ method: "POST" })
     if (data.customerRewardCode === "KIDA_6TH_RIDE_FREE") {
       const eligibleCab = data.vehicleId === "mini" || data.vehicleId === "sedan" || data.vehicleId === "xl";
       if (!eligibleCab) throw new Error("The sixth-ride reward is available for cab categories only.");
-      if (!data.farePreview || data.farePreview.km >= 7) {
-        throw new Error("The sixth-ride reward applies only to a route below 7 km.");
+      if (!data.farePreview) {
+        throw new Error("A fare preview is required before using the sixth-ride reward.");
+      }
+      const verifiedRoadDistanceKm = await getVerifiedRoadDistanceKm([
+        data.pickup,
+        ...data.stops,
+        data.dropoff,
+      ]);
+      if (verifiedRoadDistanceKm >= 7) {
+        throw new Error("The sixth-ride reward applies only to a verified road route below 7 km.");
       }
       const rewardState = await sql.query<{
         paid_completed_since_last_free: number;

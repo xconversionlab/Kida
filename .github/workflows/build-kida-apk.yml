@@ -6,6 +6,7 @@ on:
     branches:
       - "client-approval/customer-app"
       - "backend-v1/customer-data"
+      - "feature/open-maps"
     paths:
       - "android-wrapper/**"
       - "src/**"

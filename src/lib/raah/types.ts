@@ -111,7 +111,7 @@ export interface Selection {
   line: string;
   lat: number;
   lng: number;
-  source: "saved" | "recent" | "search" | "map" | "gps" | "operator" | "sample" | "google";
+  source: "saved" | "recent" | "search" | "map" | "gps" | "operator" | "sample" | "google" | "osm";
 }
 
 export interface Quote {

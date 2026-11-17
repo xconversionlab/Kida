@@ -63,10 +63,34 @@ These APIs store records only. They do **not** dispatch a Captain, call emergenc
 
 - All customer records are scoped by the verified account ID on every read and write.
 - Customer identity/profile and booking ownership are separate from client-supplied IDs.
-- Google Places selections are stored as provider + place ID only; Google-provided place names, addresses, coordinates and route geometry are not copied into booking JSON.
-- For non-Google selections, the submitted pickup/drop address and coordinates are saved as booking details because they are necessary to describe the requested trip.
+- New location selections are sourced from OpenStreetMap/Photon or device GPS and store the selected display name, address text, coordinates and source in the booking request.
+- Older records with a legacy Google source marker remain readable for backward compatibility; no Google Maps API is loaded or called by the new map/search/route UI.
+- The booking fare preview remains untrusted display metadata. Free-ride distance is independently recalculated server-side through the configured OSRM endpoint before the customer reward is reserved.
 - The client fare is stored only in `client_fare_preview`. It is untrusted display metadata, not a server quote, charge amount or settlement instruction.
 - Booking events are append-only through the current customer API. No customer-facing endpoint can alter a historical event or assign Captain/admin/support roles.
+
+## Open mapping stack
+
+The customer app's map experience has been migrated away from Google Maps APIs on the feature/open-maps branch:
+
+- Leaflet renders OpenStreetMap raster tiles with visible contributor attribution.
+- Photon provides address/place search and reverse geocoding.
+- Overpass API supplies nearby named OSM features around the pickup.
+- OSRM provides road distance, geometry and duration estimates through the configured driving profile.
+- Native/browser device GPS supplies the current device position; it does not require a paid map API.
+- The server independently recalculates road distance through KIDA_OSRM_BASE_URL before allowing the under-7-km customer reward.
+
+Configuration:
+- VITE_KIDA_TILE_URL
+- VITE_KIDA_PHOTON_URL
+- VITE_KIDA_OVERPASS_URL
+- VITE_KIDA_OSRM_URL
+- VITE_KIDA_OSRM_PROFILE
+- server-only KIDA_OSRM_BASE_URL
+
+The feature branch is intentionally configured for a preview only. Public demo endpoints are not a production hosting plan. The OSRM public demo has restrictive usage rules (including a one-request-per-second ceiling and non-commercial-use restriction); Photon may throttle extensive use; Overpass public servers are shared; and OSM's public tile servers have limited capacity and no SLA. Before production, configure self-hosted map/geocoding/routing infrastructure or a provider whose commercial terms and capacity support Kida's expected traffic. Do not prefetch/bulk-download OSM standard tiles or build offline tile packs from the public tile server.
+
+All vehicle classes currently use the configured OSRM profile (default driving) for preview distance and ETA. A dedicated motorbike profile and production route verification/capacity testing are still required before live fare calculation.
 
 ## What is not live yet
 
@@ -74,7 +98,7 @@ This is a backend foundation, not a production ride-hailing launch.
 
 1. The app's local OTP screen still accepts the demonstration code `482913`. It does not create a Better Auth account and must not be treated as phone authentication. The connected backend booking path requires a real Google/X Better Auth session. A production phone/SMS OTP provider still needs to be selected and integrated.
 2. No Captain app, KYC approval, online availability, matching/dispatch, driver location stream, trip PIN verification or staffed operator console is connected. Backend booking requests currently stop at `requested`; they do not notify or match a Captain.
-3. The Customer app now displays the client's supplied preview rates (E-Bike ₹15/km, Auto ₹20/km, Mini ₹25/km and 7-seater ₹30/km; Sedan hidden until priced). The stored fare remains a client preview, not a server-verified road quote or final settlement amount.
+3. The Customer app displays client-supplied preview rates (E-Bike ₹15/km, Auto ₹20/km, Mini ₹25/km and 7-seater ₹30/km; Sedan hidden until priced). The preview route estimate uses OSRM/OSM when configured; a straight-line fallback is labelled approximate. The stored fare remains a client preview, not a final settlement amount.
 4. The selected payment method is stored as a preference only. No payment gateway or live settlement is active. Migration 0004 adds the Captain ledger and financial-allocation schema, but actual commission deductions, direct-cash reconciliation, company-funded free-ride payouts, wallet top-ups and daily bonus credits are not yet connected to a Partner/dispatch application.
 5. Support and SOS incident submissions are stored for the signed-in account but have no staffed responder or emergency-service integration. The customer must still call 112 directly when emergency help is needed.
 6. The Android app is still a web-backed preview shell; the backend endpoints are deployed with the server application only after the feature is merged and its production database/auth environment is provisioned.
