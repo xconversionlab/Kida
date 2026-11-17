@@ -20,6 +20,7 @@ const farePreviewSchema = z.object({
   km: z.number().finite().min(0).max(2000),
   minutes: z.number().int().min(0).max(10000),
   total: z.number().int().min(0).max(1000000),
+  regularTotal: z.number().int().min(0).max(1000000).optional(),
   currency: z.literal("INR").default("INR"),
 }).strict();
 
@@ -34,6 +35,7 @@ const createBookingSchema = z.object({
   stops: z.array(selectionSchema).max(3).default([]),
   scheduledFor: z.string().datetime().nullable().optional(),
   farePreview: farePreviewSchema.nullable().optional(),
+  customerRewardCode: z.enum(["KIDA_6TH_RIDE_FREE"]).nullable().optional(),
 }).strict();
 
 const profileSchema = z.object({
@@ -82,6 +84,8 @@ type BookingRow = {
   stops: { [key: string]: JsonValue }[];
   scheduled_for: string | null;
   client_fare_preview: { [key: string]: JsonValue } | null;
+  is_free_ride: boolean;
+  customer_reward_cycle: number | null;
   payment_method: string;
   women_driver_requested: boolean;
   currency: string;
@@ -172,6 +176,65 @@ export const createMyBooking = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
     const sql = await getSql();
+
+    // Return a prior idempotent request before checking reward eligibility again.
+    const existing = await sql.query<Pick<BookingRow, "id" | "client_request_id" | "status" | "created_at" | "is_free_ride">>(
+      `select id::text as id, client_request_id::text as client_request_id,
+              status, created_at::text as created_at, is_free_ride
+         from public.kida_bookings
+        where user_id = $1 and client_request_id = $2::uuid
+        limit 1`,
+      [context.userId, data.clientRequestId],
+    );
+    if (existing[0]) return existing[0];
+
+    let customerRewardCycle: number | null = null;
+    if (data.customerRewardCode === "KIDA_6TH_RIDE_FREE") {
+      const eligibleCab = data.vehicleId === "mini" || data.vehicleId === "sedan" || data.vehicleId === "xl";
+      if (!eligibleCab) throw new Error("The sixth-ride reward is available for cab categories only.");
+      if (!data.farePreview || data.farePreview.km >= 7) {
+        throw new Error("The sixth-ride reward applies only to a route below 7 km.");
+      }
+      const rewardState = await sql.query<{
+        paid_completed_since_last_free: number;
+        completed_free_rides: number;
+        active_free_ride: boolean;
+      }>(
+        `with last_free as (
+           select max(coalesce(completed_at, updated_at)) as completed_at
+             from public.kida_bookings
+            where user_id = $1 and is_free_ride = true and status = 'completed'
+         )
+         select
+           (select count(*)::int
+              from public.kida_bookings b
+              cross join last_free lf
+             where b.user_id = $1
+               and b.status = 'completed'
+               and b.is_free_ride = false
+               and coalesce((b.client_fare_preview->>'total')::numeric, 0) > 0
+               and coalesce(b.completed_at, b.updated_at) > coalesce(lf.completed_at, '-infinity'::timestamptz)
+           ) as paid_completed_since_last_free,
+           (select count(*)::int
+              from public.kida_bookings
+             where user_id = $1 and is_free_ride = true and status = 'completed'
+           ) as completed_free_rides,
+           exists (
+             select 1
+               from public.kida_bookings
+              where user_id = $1
+                and is_free_ride = true
+                and status in ('requested','searching','accepted','captain_arriving','arrived','in_progress')
+           ) as active_free_ride`,
+        [context.userId],
+      );
+      const state = rewardState[0];
+      if (!state || state.active_free_ride || state.paid_completed_since_last_free < 5) {
+        throw new Error("Complete five paid rides before using the sixth-ride reward.");
+      }
+      customerRewardCycle = state.completed_free_rides + 1;
+    }
+
     const pickup = JSON.stringify(persistSelection(data.pickup));
     const dropoff = JSON.stringify(persistSelection(data.dropoff));
     const stops = JSON.stringify(data.stops.map(persistSelection));
@@ -180,30 +243,32 @@ export const createMyBooking = createServerFn({ method: "POST" })
 
     // Insert + initial audit event are one SQL statement. A repeated
     // clientRequestId returns the existing row without creating a duplicate.
-    const rows = await sql.query<Pick<BookingRow, "id" | "client_request_id" | "status" | "created_at">>(
+    const rows = await sql.query<Pick<BookingRow, "id" | "client_request_id" | "status" | "created_at" | "is_free_ride">>(
       `with inserted as (
          insert into public.kida_bookings
            (user_id, client_request_id, service_mode, vehicle_id,
             payment_method, women_driver_requested,
-            pickup, dropoff, stops, scheduled_for, client_fare_preview)
+            pickup, dropoff, stops, scheduled_for, client_fare_preview,
+            is_free_ride, customer_reward_cycle)
          values ($1, $2::uuid, $3, $4, $5, $6,
-                 $7::jsonb, $8::jsonb, $9::jsonb, $10::timestamptz, $11::jsonb)
-         on conflict (user_id, client_request_id) do nothing
-         returning id, user_id, client_request_id, status, created_at
+                 $7::jsonb, $8::jsonb, $9::jsonb, $10::timestamptz, $11::jsonb,
+                 $12, $13)
+         on conflict do nothing
+         returning id, user_id, client_request_id, status, created_at, is_free_ride
        ),
        audit as (
          insert into public.kida_booking_events
            (booking_id, actor_user_id, event_type, from_status, to_status, metadata)
          select id, user_id, 'booking_requested', null, status,
-                jsonb_build_object('source', 'customer_app')
+                jsonb_build_object('source', 'customer_app', 'is_free_ride', is_free_ride)
            from inserted
          returning booking_id
        )
        select id::text as id, client_request_id::text as client_request_id,
-              status, created_at::text as created_at
+              status, created_at::text as created_at, is_free_ride
          from inserted
        union all
-       select b.id::text, b.client_request_id::text, b.status, b.created_at::text
+       select b.id::text, b.client_request_id::text, b.status, b.created_at::text, b.is_free_ride
          from public.kida_bookings b
         where b.user_id = $1
           and b.client_request_id = $2::uuid
@@ -221,6 +286,8 @@ export const createMyBooking = createServerFn({ method: "POST" })
         stops,
         scheduledFor,
         farePreview,
+        Boolean(customerRewardCycle),
+        customerRewardCycle,
       ],
     );
     if (!rows[0]) throw new Error("Unable to create booking");
@@ -235,6 +302,7 @@ export const listMyBookings = createServerFn({ method: "GET" })
       `select id::text as id, client_request_id::text as client_request_id,
               service_mode, vehicle_id, status, pickup, dropoff, stops,
               scheduled_for::text as scheduled_for, client_fare_preview,
+              is_free_ride, customer_reward_cycle,
               payment_method, women_driver_requested,
               currency, cancel_reason, created_at::text as created_at,
               updated_at::text as updated_at
@@ -255,6 +323,7 @@ export const getMyBooking = createServerFn({ method: "GET" })
       `select id::text as id, client_request_id::text as client_request_id,
               service_mode, vehicle_id, status, pickup, dropoff, stops,
               scheduled_for::text as scheduled_for, client_fare_preview,
+              is_free_ride, customer_reward_cycle,
               currency, cancel_reason, created_at::text as created_at,
               updated_at::text as updated_at
          from public.kida_bookings
