@@ -45,7 +45,7 @@ function loadLeaflet(): Promise<LeafletApi> {
   if (window.L) return Promise.resolve(window.L);
 
   if (!leafletPromise) {
-    leafletPromise = new Promise((resolve, reject) => {
+    const load = new Promise<LeafletApi>((resolve, reject) => {
       const stylesheet = document.createElement("link");
       stylesheet.rel = "stylesheet";
       stylesheet.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
@@ -62,7 +62,8 @@ function loadLeaflet(): Promise<LeafletApi> {
       };
       script.onerror = () => reject(new Error("The map library could not be loaded."));
       document.head.appendChild(script);
-    }).catch((error: unknown) => {
+    });
+    leafletPromise = load.catch((error: unknown) => {
       leafletPromise = null;
       throw error;
     });
