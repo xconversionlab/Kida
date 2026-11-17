@@ -219,7 +219,7 @@ interface RaahState {
   setPromoInput: (value: string) => void;
   setPromo: (promo: PromoResult | null) => void;
   setWhen: (when: string) => void;
-  confirmBooking: (routeDistanceKm?: number, roadDurationMinutes?: number, routePath?: RouteCoordinate[], backendBooking?: { id: string; status: "requested" }) => void;
+  confirmBooking: (routeDistanceKm?: number, roadDurationMinutes?: number, routePath?: RouteCoordinate[], backendBooking?: { id: string; status: "requested"; isFreeRide?: boolean }) => void;
   assignDriver: () => void;
   tickRide: () => void;
   completeRide: () => void;
@@ -411,6 +411,11 @@ export const useRaah = create<RaahState>()(
           ? routeDistanceKm
           : Math.round(previewDistanceKm * 10) / 10;
         const fare = quoteRide(s.vehicle, km, place.kind, s.promo);
+        if (backendBooking?.isFreeRide) {
+          fare.discount = fare.total;
+          fare.total = 0;
+          fare.promoCode = "KIDA_6TH_RIDE_FREE";
+        }
         if (typeof roadDurationMinutes === "number" && Number.isFinite(roadDurationMinutes) && roadDurationMinutes > 0) {
           fare.minutes = Math.ceil(roadDurationMinutes);
         }
@@ -420,6 +425,7 @@ export const useRaah = create<RaahState>()(
           id: backendBooking?.id ?? uid("ride"),
           backendBookingId: backendBooking?.id,
           backendStatus: backendBooking?.status,
+          isCustomerRewardRide: backendBooking?.isFreeRide ?? false,
           status: scheduled ? "scheduled" : "searching",
           pickup: s.pickup,
           drop: s.drop,
@@ -448,9 +454,11 @@ export const useRaah = create<RaahState>()(
           stops: [],
           screen: backendBooking || scheduled ? "history" : "assigning",
           stack: [],
-          toast: backendBooking
-            ? "Your booking request is saved to your Kida account. Captain matching is not active yet."
-            : t(s.lang, "booked"),
+          toast: backendBooking?.isFreeRide
+            ? "Your sixth-ride reward is reserved. Kida will fund the Captain payout."
+            : backendBooking
+              ? "Your booking request is saved to your Kida account. Captain matching is not active yet."
+              : t(s.lang, "booked"),
         });
         if (s.voiceOn) speak(s.lang, t(s.lang, "booked"));
       },
