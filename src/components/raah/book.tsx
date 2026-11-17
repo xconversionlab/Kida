@@ -257,7 +257,8 @@ export function ConfirmScreen() {
   const [saveError, setSaveError] = useState("");
   const requestId = useRef<string | null>(null);
   if (!drop || !place || !trip) return null;
-  const fare = quoteForTrip(vehicle, trip.km, place.kind, useRaah.getState().promo, trip.route);
+  const bookingTrip = trip;
+  const fare = quoteForTrip(vehicle, bookingTrip.km, place.kind, useRaah.getState().promo, bookingTrip.route);
 
   async function saveBooking() {
     if (!user || saving) return;
@@ -274,10 +275,10 @@ export function ConfirmScreen() {
           womenDriverRequested: womenPreference,
           pickup,
           dropoff: drop,
-          stops: trip.stops,
+          stops: bookingTrip.stops,
           scheduledFor: when === "now" ? null : new Date(when).toISOString(),
           farePreview: {
-            km: Math.round(trip.km * 10) / 10,
+            km: Math.round(bookingTrip.km * 10) / 10,
             minutes: Math.ceil(fare.minutes),
             total: Math.round(fare.total),
             currency: "INR",
@@ -288,7 +289,7 @@ export function ConfirmScreen() {
         throw new Error("The booking was saved with an unexpected status. Refresh your booking history.");
       }
       requestId.current = null;
-      confirm(trip.route?.distanceKm, trip.route?.durationMinutes, trip.route?.path, {
+      confirm(bookingTrip.route?.distanceKm, bookingTrip.route?.durationMinutes, bookingTrip.route?.path, {
         id: result.id,
         status: "requested",
       });
