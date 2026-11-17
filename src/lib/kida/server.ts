@@ -1,0 +1,331 @@
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { authMiddleware } from "@/lib/auth/middleware";
+import { getSql } from "@/lib/db";
+import type { BookingStatus } from "./booking-state";
+
+const languageSchema = z.enum(["en", "hi", "ta", "te", "kn", "ml", "bn", "mr", "gu", "pa"]);
+
+const selectionSchema = z.object({
+  placeId: z.string().trim().min(1).max(180),
+  landmarkId: z.string().trim().max(180).optional().default(""),
+  label: z.string().trim().max(180).optional().default(""),
+  line: z.string().trim().max(320).optional().default(""),
+  lat: z.number().finite().min(-90).max(90),
+  lng: z.number().finite().min(-180).max(180),
+  source: z.enum(["saved", "recent", "search", "map", "gps", "operator", "sample", "google"]),
+}).strict();
+
+const farePreviewSchema = z.object({
+  km: z.number().finite().min(0).max(2000),
+  minutes: z.number().int().min(0).max(10000),
+  total: z.number().int().min(0).max(1000000),
+  currency: z.literal("INR").default("INR"),
+}).strict();
+
+const createBookingSchema = z.object({
+  clientRequestId: z.string().uuid(),
+  serviceMode: z.enum(["ride", "parcel", "intercity", "rental", "airport", "pet", "transit", "shared"]).default("ride"),
+  vehicleId: z.enum(["bike", "auto", "mini", "sedan", "xl"]),
+  pickup: selectionSchema,
+  dropoff: selectionSchema,
+  stops: z.array(selectionSchema).max(3).default([]),
+  scheduledFor: z.string().datetime().nullable().optional(),
+  farePreview: farePreviewSchema.nullable().optional(),
+}).strict();
+
+const profileSchema = z.object({
+  displayName: z.string().trim().min(1).max(80),
+  phoneE164: z.string().trim().regex(/^\+[1-9][0-9]{7,14}$/).nullable().optional(),
+  preferredLanguage: languageSchema.default("en"),
+}).strict();
+
+const ticketSchema = z.object({
+  bookingId: z.string().uuid().nullable().optional(),
+  topic: z.enum(["booking", "payment", "account", "safety", "lost_item", "other"]),
+  message: z.string().trim().min(1).max(4000),
+}).strict();
+
+const cancelSchema = z.object({
+  bookingId: z.string().uuid(),
+  reason: z.string().trim().min(1).max(240),
+}).strict();
+
+type ProfileRow = {
+  user_id: string;
+  display_name: string;
+  phone_e164: string | null;
+  phone_verified_at: string | null;
+  preferred_language: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type BookingRow = {
+  id: string;
+  client_request_id: string;
+  service_mode: string;
+  vehicle_id: string;
+  status: BookingStatus;
+  pickup: Record<string, unknown>;
+  dropoff: Record<string, unknown>;
+  stops: Record<string, unknown>[];
+  scheduled_for: string | null;
+  client_fare_preview: Record<string, unknown> | null;
+  currency: string;
+  cancel_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type TicketRow = {
+  id: string;
+  booking_id: string | null;
+  topic: string;
+  message: string;
+  status: string;
+  created_at: string;
+};
+
+/**
+ * Google Places content is kept minimal: retain the provider place ID only.
+ * The customer app already avoids persisting Google names/addresses/geometry;
+ * backend snapshots follow the same policy and never store route polylines.
+ * For other sources, the booking stores the address/coordinates the customer
+ * explicitly submitted with the booking request.
+ */
+function persistSelection(selection: z.infer<typeof selectionSchema>) {
+  if (selection.source === "google") {
+    return { source: "google", placeId: selection.placeId };
+  }
+  return {
+    source: selection.source,
+    placeId: selection.placeId,
+    landmarkId: selection.landmarkId,
+    label: selection.label,
+    line: selection.line,
+    lat: selection.lat,
+    lng: selection.lng,
+  };
+}
+
+export const getMyProfile = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    const rows = await sql.query<ProfileRow>(
+      `select user_id, display_name, phone_e164, phone_verified_at::text,
+              preferred_language, created_at::text, updated_at::text
+         from public.kida_profiles
+        where user_id = $1
+        limit 1`,
+      [context.userId],
+    );
+    return rows[0] ?? null;
+  });
+
+export const saveMyProfile = createServerFn({ method: "POST" })
+  .validator((input: unknown) => profileSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const rows = await sql.query<ProfileRow>(
+      `insert into public.kida_profiles
+         (user_id, display_name, phone_e164, preferred_language)
+       values ($1, $2, $3, $4)
+       on conflict (user_id) do update set
+         display_name = excluded.display_name,
+         phone_verified_at = case
+           when public.kida_profiles.phone_e164 is distinct from excluded.phone_e164
+             then null
+           else public.kida_profiles.phone_verified_at
+         end,
+         phone_e164 = excluded.phone_e164,
+         preferred_language = excluded.preferred_language,
+         updated_at = now()
+       returning user_id, display_name, phone_e164, phone_verified_at::text,
+                 preferred_language, created_at::text, updated_at::text`,
+      [
+        context.userId,
+        data.displayName,
+        data.phoneE164 ?? null,
+        data.preferredLanguage,
+      ],
+    );
+    return rows[0] ?? null;
+  });
+
+export const createMyBooking = createServerFn({ method: "POST" })
+  .validator((input: unknown) => createBookingSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const pickup = JSON.stringify(persistSelection(data.pickup));
+    const dropoff = JSON.stringify(persistSelection(data.dropoff));
+    const stops = JSON.stringify(data.stops.map(persistSelection));
+    const farePreview = data.farePreview ? JSON.stringify(data.farePreview) : null;
+    const scheduledFor = data.scheduledFor ?? null;
+
+    // Insert + initial audit event are one SQL statement. A repeated
+    // clientRequestId returns the existing row without creating a duplicate.
+    const rows = await sql.query<Pick<BookingRow, "id" | "client_request_id" | "status" | "created_at">>(
+      `with inserted as (
+         insert into public.kida_bookings
+           (user_id, client_request_id, service_mode, vehicle_id,
+            pickup, dropoff, stops, scheduled_for, client_fare_preview)
+         values ($1, $2::uuid, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb,
+                 $8::timestamptz, $9::jsonb)
+         on conflict (user_id, client_request_id) do nothing
+         returning id, user_id, client_request_id, status, created_at
+       ),
+       audit as (
+         insert into public.kida_booking_events
+           (booking_id, actor_user_id, event_type, from_status, to_status, metadata)
+         select id, user_id, 'booking_requested', null, status,
+                jsonb_build_object('source', 'customer_app')
+           from inserted
+         returning booking_id
+       )
+       select id::text as id, client_request_id::text as client_request_id,
+              status, created_at::text as created_at
+         from inserted
+       union all
+       select b.id::text, b.client_request_id::text, b.status, b.created_at::text
+         from public.kida_bookings b
+        where b.user_id = $1
+          and b.client_request_id = $2::uuid
+          and not exists (select 1 from inserted)
+       limit 1`,
+      [
+        context.userId,
+        data.clientRequestId,
+        data.serviceMode,
+        data.vehicleId,
+        pickup,
+        dropoff,
+        stops,
+        scheduledFor,
+        farePreview,
+      ],
+    );
+    if (!rows[0]) throw new Error("Unable to create booking");
+    return rows[0];
+  });
+
+export const listMyBookings = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    return sql.query<BookingRow>(
+      `select id::text as id, client_request_id::text as client_request_id,
+              service_mode, vehicle_id, status, pickup, dropoff, stops,
+              scheduled_for::text as scheduled_for, client_fare_preview,
+              currency, cancel_reason, created_at::text as created_at,
+              updated_at::text as updated_at
+         from public.kida_bookings
+        where user_id = $1
+        order by created_at desc
+        limit 100`,
+      [context.userId],
+    );
+  });
+
+export const getMyBooking = createServerFn({ method: "GET" })
+  .validator((input: unknown) => z.object({ bookingId: z.string().uuid() }).strict().parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const rows = await sql.query<BookingRow>(
+      `select id::text as id, client_request_id::text as client_request_id,
+              service_mode, vehicle_id, status, pickup, dropoff, stops,
+              scheduled_for::text as scheduled_for, client_fare_preview,
+              currency, cancel_reason, created_at::text as created_at,
+              updated_at::text as updated_at
+         from public.kida_bookings
+        where user_id = $1 and id = $2::uuid
+        limit 1`,
+      [context.userId, data.bookingId],
+    );
+    return rows[0] ?? null;
+  });
+
+export const cancelMyBooking = createServerFn({ method: "POST" })
+  .validator((input: unknown) => cancelSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const rows = await sql.query<{
+      id: string;
+      from_status: BookingStatus;
+      to_status: BookingStatus;
+      updated_at: string;
+    }>(
+      `with locked as materialized (
+         select id, status
+           from public.kida_bookings
+          where id = $1::uuid
+            and user_id = $2
+            and status in ('requested', 'searching')
+          for update
+       ),
+       changed as (
+         update public.kida_bookings b
+            set status = 'cancelled',
+                cancel_reason = $3,
+                cancelled_at = now(),
+                updated_at = now()
+           from locked l
+          where b.id = l.id
+         returning b.id, l.status as from_status, b.status as to_status, b.updated_at
+       ),
+       audit as (
+         insert into public.kida_booking_events
+           (booking_id, actor_user_id, event_type, from_status, to_status, metadata)
+         select id, $2, 'booking_cancelled', from_status, to_status,
+                jsonb_build_object('reason', $3)
+           from changed
+         returning booking_id
+       )
+       select id::text as id, from_status, to_status, updated_at::text as updated_at
+         from changed`,
+      [data.bookingId, context.userId, data.reason],
+    );
+    return rows[0] ?? null;
+  });
+
+export const createMySupportTicket = createServerFn({ method: "POST" })
+  .validator((input: unknown) => ticketSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const rows = await sql.query<TicketRow>(
+      `insert into public.kida_support_tickets
+         (user_id, booking_id, topic, message)
+       select $1, $2::uuid, $3, $4
+        where $2::uuid is null
+           or exists (
+             select 1 from public.kida_bookings
+              where id = $2::uuid and user_id = $1
+           )
+       returning id::text as id, booking_id::text as booking_id,
+                 topic, message, status, created_at::text as created_at`,
+      [context.userId, data.bookingId ?? null, data.topic, data.message],
+    );
+    if (!rows[0]) throw new Error("Booking not found for this account");
+    return rows[0];
+  });
+
+export const listMySupportTickets = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    return sql.query<TicketRow>(
+      `select id::text as id, booking_id::text as booking_id,
+              topic, message, status, created_at::text as created_at
+         from public.kida_support_tickets
+        where user_id = $1
+        order by created_at desc
+        limit 100`,
+      [context.userId],
+    );
+  });
