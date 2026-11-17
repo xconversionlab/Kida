@@ -463,7 +463,37 @@ export function SosScreen() {
   const armed = useRaah((s) => s.sosArmed);
   const setArmed = useRaah((s) => s.setSosArmed);
   const emergency = useRaah((s) => s.emergency);
+  const { user, isPending } = useCurrentUserState();
   const [step, setStep] = useState(0);
+  const [recording, setRecording] = useState(false);
+  const [recordNotice, setRecordNotice] = useState("");
+
+  async function confirmSafetyReport() {
+    setArmed(true);
+    if (!user) {
+      setRecordNotice("This incident was not saved. Sign in to record it in your Kida account. Call 112 directly for emergency help.");
+      return;
+    }
+    setRecording(true);
+    setRecordNotice("");
+    try {
+      const active = useRaah.getState().rides.find(
+        (ride) => ride.id === useRaah.getState().activeRideId || ride.id === useRaah.getState().selectedRideId,
+      );
+      await createMySafetyIncident({
+        data: {
+          bookingId: active?.backendBookingId ?? null,
+          category: "sos",
+          description: "Customer confirmed the SOS incident report in the Kida app.",
+        },
+      });
+      setRecordNotice("Incident report saved to your Kida account. This record does not contact emergency services or a staffed response team. Call 112 if you need emergency help.");
+    } catch {
+      setRecordNotice("The incident could not be saved to your Kida account. Call 112 directly if you need emergency help.");
+    } finally {
+      setRecording(false);
+    }
+  }
   return (
     <div>
       <Header title={copy("sosTitle")} subtitle={copy("sosBody")} onBack={back} />
@@ -484,15 +514,17 @@ export function SosScreen() {
               <Btn variant="line" onClick={() => setStep(0)}>
                 {copy("cancel")}
               </Btn>
-              <Btn variant="danger" onClick={() => setArmed(true)}>
-                {copy("sos")}
+              <Btn variant="danger" disabled={recording || isPending} onClick={() => void confirmSafetyReport()}>
+                {recording ? "Recording…" : "Confirm incident"}
               </Btn>
             </div>
           </Card>
         ) : null}
+        {recordNotice && !armed ? <p role="status" className="rounded-xl bg-paper p-3 text-sm text-muted">{recordNotice}</p> : null}
         {armed ? (
           <Card>
             <p className="font-semibold">{copy("sosDone")}</p>
+            {recordNotice ? <p role="status" className="mt-2 text-sm text-muted">{recordNotice}</p> : null}
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-muted">
               <li>Saved contacts: {emergency.length ? emergency.map((item) => `${item.name} (+91 ${item.phone})`).join(", ") : "No emergency contacts added yet"}.</li>
               <li>Use Share Trip to send your trip details to someone you trust.</li>
