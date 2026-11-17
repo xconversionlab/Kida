@@ -1,0 +1,55 @@
+name: Kida Backend V1 Checks
+
+on:
+  push:
+    branches:
+      - "backend-v1/customer-data"
+    paths:
+      - "src/**"
+      - "migrations/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".grok/app-env.json"
+      - ".github/workflows/kida-backend-v1.yml"
+  pull_request:
+    branches:
+      - "client-approval/customer-app"
+    paths:
+      - "src/**"
+      - "migrations/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".grok/app-env.json"
+      - ".github/workflows/kida-backend-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Test, typecheck and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out Kida
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run unit and database migration tests
+        run: npm test
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build production app
+        run: npm run build
