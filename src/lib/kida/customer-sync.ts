@@ -99,6 +99,7 @@ function mapBooking(booking: BackendBooking): Ride {
     id: booking.id,
     backendBookingId: booking.id,
     backendStatus: booking.status,
+    isCustomerRewardRide: booking.is_free_ride,
     status: uiStatus(booking.status, booking.scheduled_for),
     pickup: selectionFromBackend(booking.pickup, "pickup"),
     drop: selectionFromBackend(booking.dropoff, "drop"),
