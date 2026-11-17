@@ -51,6 +51,12 @@ const cancelSchema = z.object({
   reason: z.string().trim().min(1).max(240),
 }).strict();
 
+const incidentSchema = z.object({
+  bookingId: z.string().uuid().nullable().optional(),
+  category: z.enum(["sos", "safety_concern", "accident", "harassment", "other"]),
+  description: z.string().trim().max(2000).nullable().optional(),
+}).strict();
+
 type ProfileRow = {
   user_id: string;
   display_name: string;
@@ -249,6 +255,29 @@ export const getMyBooking = createServerFn({ method: "GET" })
     return rows[0] ?? null;
   });
 
+export const getMyBookingEvents = createServerFn({ method: "GET" })
+  .validator((input: unknown) => z.object({ bookingId: z.string().uuid() }).strict().parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    return sql.query<{
+      id: number;
+      event_type: string;
+      from_status: string | null;
+      to_status: string | null;
+      metadata: Record<string, unknown>;
+      created_at: string;
+    }>(
+      `select e.id, e.event_type, e.from_status, e.to_status, e.metadata,
+              e.created_at::text as created_at
+         from public.kida_booking_events e
+         join public.kida_bookings b on b.id = e.booking_id
+        where b.user_id = $1 and b.id = $2::uuid
+        order by e.created_at asc, e.id asc`,
+      [context.userId, data.bookingId],
+    );
+  });
+
 export const cancelMyBooking = createServerFn({ method: "POST" })
   .validator((input: unknown) => cancelSchema.parse(input))
   .middleware([authMiddleware])
@@ -276,18 +305,21 @@ export const cancelMyBooking = createServerFn({ method: "POST" })
                 updated_at = now()
            from locked l
           where b.id = l.id
-         returning b.id, l.status as from_status, b.status as to_status, b.updated_at
+         returning b.id, b.status, b.updated_at
        ),
        audit as (
          insert into public.kida_booking_events
            (booking_id, actor_user_id, event_type, from_status, to_status, metadata)
-         select id, $2, 'booking_cancelled', from_status, to_status,
+         select c.id, $2, 'booking_cancelled', l.status, c.status,
                 jsonb_build_object('reason', $3)
-           from changed
+           from changed c
+           join locked l on l.id = c.id
          returning booking_id
        )
-       select id::text as id, from_status, to_status, updated_at::text as updated_at
-         from changed`,
+       select c.id::text as id, l.status as from_status,
+              c.status as to_status, c.updated_at::text as updated_at
+         from changed c
+         join locked l on l.id = c.id`,
       [data.bookingId, context.userId, data.reason],
     );
     return rows[0] ?? null;
@@ -312,6 +344,36 @@ export const createMySupportTicket = createServerFn({ method: "POST" })
       [context.userId, data.bookingId ?? null, data.topic, data.message],
     );
     if (!rows[0]) throw new Error("Booking not found for this account");
+    return rows[0];
+  });
+
+export const createMySafetyIncident = createServerFn({ method: "POST" })
+  .validator((input: unknown) => incidentSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const rows = await sql.query<{
+      id: string;
+      booking_id: string | null;
+      category: string;
+      status: string;
+      reported_at: string;
+    }>(
+      `insert into public.kida_safety_incidents
+         (user_id, booking_id, category, description)
+       select $1, $2::uuid, $3, $4
+        where $2::uuid is null
+           or exists (
+             select 1 from public.kida_bookings
+              where id = $2::uuid and user_id = $1
+           )
+       returning id::text as id, booking_id::text as booking_id,
+                 category, status, reported_at::text as reported_at`,
+      [context.userId, data.bookingId ?? null, data.category, data.description ?? null],
+    );
+    if (!rows[0]) throw new Error("Booking not found for this account");
+    // This only records an incident. It does not contact emergency services
+    // or a staffed response team.
     return rows[0];
   });
 
