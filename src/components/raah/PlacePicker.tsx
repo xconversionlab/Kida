@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LocateFixed, MapPin, Search } from "lucide-react";
 import { searchPlaces, toSelection } from "@/lib/raah/places";
 import type { PlaceKind, Selection } from "@/lib/raah/types";
@@ -73,7 +73,7 @@ export function PlacePicker() {
   const saved = [home, work, ...extras].filter((item) => item != null);
   const focused = results.find((place) => place.id === openId) ?? results[0];
 
-  async function applyCurrentPickup(position: GeolocationPosition, isActive: () => boolean = () => true) {
+  const applyCurrentPickup = useCallback(async (position: GeolocationPosition, isActive: () => boolean = () => true) => {
     const point = { lat: position.coords.latitude, lng: position.coords.longitude };
     const address = await reverseGeocodeOsm(point, lang);
     if (!isActive()) return;
@@ -84,7 +84,7 @@ export function PlacePicker() {
     setMapError("");
     setToast("Your current location is set as the pickup.");
     if (target === "pickup") choose(selection);
-  }
+  }, [lang, setPickupLocation, setToast, target, choose]);
 
   function useGps() {
     if (!navigator.geolocation) {
@@ -158,7 +158,7 @@ export function PlacePicker() {
     );
 
     return () => { active = false; };
-  }, [target, lang, setPickupLocation, setToast, choose]);
+  }, [target, applyCurrentPickup]);
 
   // Fetch real nearby OSM features around the pickup when the Drop selector opens.
   useEffect(() => {
