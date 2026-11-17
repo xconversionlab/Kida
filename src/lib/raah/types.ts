@@ -180,6 +180,9 @@ export interface Ride {
   stops?: Selection[];
   issue?: string;
   lostItem?: string;
+  /** Present only for rows loaded from the authenticated customer backend. */
+  backendBookingId?: string;
+  backendStatus?: "requested" | "searching" | "accepted" | "captain_arriving" | "arrived" | "in_progress" | "completed" | "cancelled" | "expired" | "no_captain";
 }
 
 export interface SavedPlace {
@@ -199,8 +202,10 @@ export interface Ticket {
   id: string;
   topic: string;
   text: string;
-  status: "Open" | "In review";
+  status: "Open" | "In review" | "Resolved" | "Closed";
   at: string;
+  /** Backend-owned support ticket; not persisted in the local preview store. */
+  backend?: boolean;
 }
 
 export type Consent = "none" | "link_sent" | "allowed" | "denied";
