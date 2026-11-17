@@ -72,7 +72,7 @@ function loadLeaflet(): Promise<LeafletApi> {
 }
 
 const TILE_URL = (import.meta.env.VITE_KIDA_TILE_URL as string | undefined) ||
-  "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+  (import.meta.env.DEV ? "https://tile.openstreetmap.org/{z}/{x}/{y}.png" : "");
 
 export function MapView({
   pickup,
@@ -112,6 +112,7 @@ export function MapView({
       .then((L) => {
         const element = hostRef.current;
         if (cancelled || !element) return;
+        if (!TILE_URL) throw new Error("A map tile provider must be configured for this environment.");
 
         createdMap = L.map(element, {
           center: [22.9734, 78.6569],
