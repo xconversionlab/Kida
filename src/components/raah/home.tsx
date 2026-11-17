@@ -57,10 +57,12 @@ export function HomeScreen() {
         </button>
       </header>
       <div className="space-y-3 px-4">
-        <MapView pickup={pickup} drop={drop} className={simple ? "h-40" : "h-56"} />
+        <MapView pickup={pickup.source === "sample" ? null : pickup} drop={drop} className={simple ? "h-40" : "h-56"} />
         <p className="text-xs text-muted">
-          {place?.name}, {place?.state}
-          {place?.kind === "village" || place?.kind === "town" ? ` · ${copy("villageNote")}` : ""}
+          {pickup.source === "sample"
+            ? "Your current location will be detected when you start booking."
+            : `${place?.name ?? pickup.label}, ${place?.state ?? pickup.line}`}
+          {pickup.source !== "sample" && (place?.kind === "village" || place?.kind === "town") ? ` · ${copy("villageNote")}` : ""}
         </p>
         {live ? (
           <button
@@ -94,7 +96,7 @@ export function HomeScreen() {
           <span className="size-2.5 rounded-full bg-primary" />
           <span className="min-w-0">
             <span className="block text-xs font-semibold text-muted">{copy("pickup")}</span>
-            <span className="block truncate font-medium">{pickup.label}</span>
+            <span className="block truncate font-medium">{pickup.source === "sample" ? "Current location · detected when booking" : pickup.label}</span>
           </span>
         </button>
         <button type="button" onClick={goDrop} className="flex h-14 w-full items-center gap-3 rounded-2xl bg-paper px-3 text-left">
