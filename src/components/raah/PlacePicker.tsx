@@ -43,6 +43,8 @@ export function PlacePicker() {
   const extras = useRaah((s) => s.extras);
   const recents = useRaah((s) => s.recents);
   const pickup = useRaah((s) => s.pickup);
+  const setPickupLocation = useRaah((s) => s.setPickupLocation);
+  const setPlaceTarget = useRaah((s) => s.setPlaceTarget);
   const setToast = useRaah((s) => s.setToast);
 
   const [query, setQuery] = useState("");
@@ -53,6 +55,7 @@ export function PlacePicker() {
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [pickupGpsReady, setPickupGpsReady] = useState(false);
   const [mapError, setMapError] = useState("");
   const requestNumberRef = useRef(0);
   const autoLocationRequestedRef = useRef(false);
@@ -70,60 +73,72 @@ export function PlacePicker() {
   const saved = [home, work, ...extras].filter((item) => item != null);
   const focused = results.find((place) => place.id === openId) ?? results[0];
 
-  async function selectCurrentGps(position: GeolocationPosition) {
+  async function applyCurrentPickup(position: GeolocationPosition, isActive: () => boolean = () => true) {
     const point = { lat: position.coords.latitude, lng: position.coords.longitude };
     const address = await reverseGeocodeOsm(point, lang);
-    choose(osmOptionToSelection(address));
-    setToast("Pickup address found using OpenStreetMap.");
+    if (!isActive()) return;
+
+    const selection = osmOptionToSelection(address);
+    setPickupLocation(selection);
+    setPickupGpsReady(true);
+    setMapError("");
+    setToast("Your current location is set as the pickup.");
+    if (target === "pickup") choose(selection);
   }
 
   function useGps() {
     if (!navigator.geolocation) {
-      setMapError("This device does not provide location services. You can search for an address instead.");
+      setPickupGpsReady(false);
+      setMapError("This device does not provide location services. Choose your pickup manually.");
       return;
     }
 
     setLocationLoading(true);
+    setPickupGpsReady(false);
     setMapError("");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        void selectCurrentGps(position)
+        void applyCurrentPickup(position)
           .catch((error: unknown) => setMapError(error instanceof Error ? error.message : "OpenStreetMap could not identify this location."))
           .finally(() => setLocationLoading(false));
       },
       (error) => {
         setLocationLoading(false);
+        setPickupGpsReady(false);
         setMapError(error.code === error.PERMISSION_DENIED
-          ? "Location permission is off. Allow location access and try again."
+          ? "Location permission is off. Allow location access or choose your pickup manually."
           : "Could not read your current location. Check GPS and try again.");
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     );
   }
 
-  // When the Pickup screen opens, try to resolve the device GPS position.
-  // The customer can still decline permission and search or choose a saved place.
+  // Resolve the device position as soon as the ride-order map opens.
+  // This prevents the Bengaluru demo seed from being used as the pickup.
   useEffect(() => {
-    if (target !== "pickup") {
+    const isLocationStage = target === "pickup" || target === "drop";
+    if (!isLocationStage) {
       autoLocationRequestedRef.current = false;
+      setPickupGpsReady(false);
       return;
     }
-    if (autoLocationRequestedRef.current || !navigator.geolocation) return;
+    if (autoLocationRequestedRef.current) return;
     autoLocationRequestedRef.current = true;
+
+    if (!navigator.geolocation) {
+      setLocationLoading(false);
+      setPickupGpsReady(false);
+      setMapError("Location services are unavailable. Choose your pickup manually.");
+      return;
+    }
 
     let active = true;
     setLocationLoading(true);
+    setPickupGpsReady(false);
+    setMapError("");
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        void reverseGeocodeOsm(
-          { lat: position.coords.latitude, lng: position.coords.longitude },
-          lang,
-        )
-          .then((address) => {
-            if (!active) return;
-            choose(osmOptionToSelection(address));
-            setToast("Pickup address found using OpenStreetMap.");
-          })
+        void applyCurrentPickup(position, () => active)
           .catch((error: unknown) => {
             if (active) setMapError(error instanceof Error ? error.message : "OpenStreetMap could not identify this location.");
           })
@@ -134,15 +149,16 @@ export function PlacePicker() {
       (error) => {
         if (!active) return;
         setLocationLoading(false);
+        setPickupGpsReady(false);
         setMapError(error.code === error.PERMISSION_DENIED
-          ? "Allow location access to fill your pickup address automatically, or search below."
-          : "Location could not be read. Use Search to enter your pickup.");
+          ? "Allow location access to set your current position as pickup, or choose a pickup manually."
+          : "Location could not be read. Check GPS and try again.");
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 },
     );
 
     return () => { active = false; };
-  }, [target, lang, choose, setToast]);
+  }, [target, lang, setPickupLocation, setToast, choose]);
 
   // Fetch real nearby OSM features around the pickup when the Drop selector opens.
   useEffect(() => {
@@ -270,12 +286,12 @@ export function PlacePicker() {
           ))}
         </div>
 
-        {target === "pickup" ? (
+        {target === "pickup" || target === "drop" ? (
           <button type="button" onClick={useGps} disabled={locationLoading} className="flex min-h-14 w-full items-center gap-3 rounded-2xl bg-primary-soft px-3 text-left text-primary disabled:opacity-60">
             <LocateFixed className="size-5 shrink-0" />
             <span>
-              <span className="block font-semibold">{locationLoading ? "Finding your address…" : "Use my current location"}</span>
-              <span className="block text-xs">Your device GPS position will be resolved with OpenStreetMap</span>
+              <span className="block font-semibold">{locationLoading ? "Detecting current pickup…" : "Use my current location as pickup"}</span>
+              <span className="block text-xs">Device GPS will set your pickup and center the map here</span>
             </span>
           </button>
         ) : null}
@@ -325,7 +341,38 @@ export function PlacePicker() {
           </section>
         ) : null}
 
-        {target === "drop" ? <MapView pickup={pickup} className="h-44" /> : null}
+        {target === "drop" ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-xl border border-line bg-paper px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Pickup location</p>
+                <p className="truncate text-sm font-semibold">
+                  {pickupGpsReady ? pickup.label : locationLoading ? "Detecting your current location…" : "Waiting for current location"}
+                </p>
+                {pickupGpsReady ? <p className="truncate text-xs text-muted">{pickup.line}</p> : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPlaceTarget("pickup");
+                  useRaah.getState().open("pickup");
+                }}
+                className="ml-2 shrink-0 text-xs font-semibold text-primary"
+              >
+                Change
+              </button>
+            </div>
+            <MapView
+              pickup={pickupGpsReady ? pickup : null}
+              caption={pickupGpsReady
+                ? "Your current location is set as pickup"
+                : locationLoading
+                  ? "Detecting your current location…"
+                  : "Enable location or choose a pickup"}
+              className="h-44"
+            />
+          </div>
+        ) : null}
 
         {target === "drop" ? (
           <section>
