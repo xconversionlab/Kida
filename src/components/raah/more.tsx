@@ -93,6 +93,7 @@ export function ProfileScreen() {
   const removeEmergency = useRaah((s) => s.removeEmergency);
   const removePlace = useRaah((s) => s.removePlace);
   const setToast = useRaah((s) => s.setToast);
+  const { user } = useCurrentUserState();
   const [draft, setDraft] = useState(name);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileNotice, setProfileNotice] = useState("");
@@ -179,7 +180,7 @@ export function ProfileScreen() {
             <p className="truncate font-semibold">{name}</p>
             <p className="text-sm text-muted tabular">+91 {prettyPhone(phone)}</p>
             <p className="mt-1 text-xs font-semibold text-primary">
-              {authEnabled && useCurrentUserState().user && !useCurrentUserState().user?.isDevFallback
+              {authEnabled && user && !user.isDevFallback
                 ? "Kida account · signed in · phone not verified"
                 : "Preview account · not phone-verified"}
             </p>
