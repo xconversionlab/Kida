@@ -505,7 +505,7 @@ export function ShareScreen() {
   const [message,setMessage] = useState("");
   async function share() {
     if (!ride) return;
-    const route = `https://www.google.com/maps/dir/?api=1&origin=${ride.pickup.lat},${ride.pickup.lng}&destination=${ride.drop.lat},${ride.drop.lng}&travelmode=driving`;
+    const route = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${ride.pickup.lat}%2C${ride.pickup.lng}%3B${ride.drop.lat}%2C${ride.drop.lng}`;
     const details = [
       "Kida trip details",
       `Driver: ${ride.driver?.name ?? "Not assigned in this preview"}`,
@@ -540,7 +540,7 @@ export function ShareScreen() {
           <p className="tabular text-lg">{ride?.driver?.plate ?? "Vehicle not assigned"}</p>
           <p className="mt-2 text-sm text-muted">{ride?.pickup.line}</p>
           <p className="text-sm text-muted">{ride?.drop.line}</p>
-          <p className="mt-3 text-xs text-muted">This shares trip details and a Google Maps route. It is not a live tracking link; realtime trip sharing needs the Kida backend.</p>
+          <p className="mt-3 text-xs text-muted">This shares trip details and an OpenStreetMap route. It is not a live tracking link; realtime trip sharing needs the Kida backend.</p>
         </div>
         <button type="button" onClick={() => void share()} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary font-semibold text-primary-ink"><Share2 className="size-4"/> Share trip details</button>
         {message ? <p className="text-sm text-muted">{message}</p> : null}
