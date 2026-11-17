@@ -1,9 +1,13 @@
 import { useState } from "react";
+import { authEnabled, GROK_PROVIDERS, signIn, signOut } from "@/lib/auth/client";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { createMySafetyIncident, createMySupportTicket, getMyProfile, saveMyProfile } from "@/lib/kida/server";
 import { Award, Bell, BriefcaseBusiness, ChevronRight, Coins, CreditCard, Crown, Gift, History, HelpCircle, Package, Settings, ShieldCheck, ShieldAlert } from "lucide-react";
 import { company } from "@/lib/raah/company";
 import { LEGAL } from "@/lib/raah/legal";
 import { payLabel } from "@/lib/raah/labels";
 import { PAY_METHODS } from "@/lib/raah/pricing";
+import { getCustomerRewardProgress } from "@/lib/raah/rewards";
 import { useRaah, type PlaceTarget } from "@/lib/raah/store";
 import type { PayMethod } from "@/lib/raah/types";
 import { MapView } from "./MapView";
@@ -16,6 +20,9 @@ export function AccountScreen() {
   const photo = useRaah((s) => s.photo);
   const open = useRaah((s) => s.open);
   const logout = useRaah((s) => s.logout);
+  const setToast = useRaah((s) => s.setToast);
+  const { user } = useCurrentUserState();
+  const [signingOut, setSigningOut] = useState(false);
   const items: { label: string; screen: "profile" | "payments" | "offers" | "support" | "company" | "settings" | "notes" | "operator" | "call" }[] = [
     { label: copy("profile"), screen: "profile" },
     { label: copy("payments"), screen: "payments" },
@@ -24,6 +31,19 @@ export function AccountScreen() {
     { label: copy("about"), screen: "company" },
     { label: copy("settings"), screen: "settings" },
   ];
+  async function handleLogout() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      if (authEnabled && user && !user.isDevFallback) await signOut();
+      logout();
+    } catch {
+      setToast("Could not sign out of your Kida account. Please retry.");
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
   return (
     <div className="pb-4">
       <Header title={copy("account")} />
@@ -33,7 +53,11 @@ export function AccountScreen() {
           <span>
             <span className="block text-lg font-semibold">{name}</span>
             <span className="text-sm text-muted">+91 {prettyPhone(phone)}</span>
-            <span className="mt-1 block text-xs font-semibold text-primary">Preview account · not phone-verified</span>
+            <span className="mt-1 block text-xs font-semibold text-primary">
+              {authEnabled && user && !user.isDevFallback
+                ? "Kida account · signed in · phone not verified"
+                : "Preview account · not phone-verified"}
+            </span>
           </span>
         </button>
         <div className="space-y-2">
@@ -44,8 +68,8 @@ export function AccountScreen() {
             </button>
           ))}
         </div>
-        <Btn variant="line" className="mt-4 w-full" onClick={logout}>
-          {copy("logout")}
+        <Btn variant="line" className="mt-4 w-full" disabled={signingOut} onClick={() => void handleLogout()}>
+          {signingOut ? "Signing out…" : copy("logout")}
         </Btn>
       </div>
     </div>
@@ -70,13 +94,47 @@ export function ProfileScreen() {
   const removeEmergency = useRaah((s) => s.removeEmergency);
   const removePlace = useRaah((s) => s.removePlace);
   const setToast = useRaah((s) => s.setToast);
+  const { user } = useCurrentUserState();
   const [draft, setDraft] = useState(name);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileNotice, setProfileNotice] = useState("");
   const [contact, setContact] = useState("");
   const [contactPhone, setContactPhone] = useState("");
 
   function pick(target: PlaceTarget) {
     setTarget(target);
     open("destination");
+  }
+
+  async function saveCustomerProfile() {
+    const cleanName = draft.trim();
+    if (cleanName.length < 2 || savingProfile) return;
+    setSavingProfile(true);
+    setProfileNotice("");
+    try {
+      const current = await getMyProfile();
+      const digits = phone.replace(/\D/g, "");
+      const phoneE164 = digits.length === 10
+        ? `+91${digits}`
+        : current?.phone_e164 ?? null;
+      await saveMyProfile({
+        data: {
+          displayName: cleanName,
+          phoneE164,
+          preferredLanguage: useRaah.getState().lang,
+        },
+      });
+      setName(cleanName);
+      setProfileNotice(phoneE164
+        ? "Profile saved. Your mobile number is not verified by this save."
+        : "Profile saved to your Kida account.");
+    } catch (error) {
+      setProfileNotice(error instanceof Error && error.message === "Unauthorized"
+        ? "Sign in to save your profile to your Kida account."
+        : "Could not save your profile. Please retry.");
+    } finally {
+      setSavingProfile(false);
+    }
   }
 
   function onPhoto(file: File | undefined) {
@@ -122,7 +180,11 @@ export function ProfileScreen() {
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold">{name}</p>
             <p className="text-sm text-muted tabular">+91 {prettyPhone(phone)}</p>
-            <p className="mt-1 text-xs font-semibold text-primary">Preview account · not phone-verified</p>
+            <p className="mt-1 text-xs font-semibold text-primary">
+              {authEnabled && user && !user.isDevFallback
+                ? "Kida account · signed in · phone not verified"
+                : "Preview account · not phone-verified"}
+            </p>
           </div>
           <label className="text-xs font-semibold text-primary">
             Change photo
@@ -167,10 +229,23 @@ export function ProfileScreen() {
           <ChevronRight className="size-4 text-muted" />
         </button>
 
+        {authEnabled && !user ? (
+          <div className="space-y-2 rounded-2xl bg-primary-soft p-3">
+            <p className="text-sm font-semibold">Sign in to save your Kida profile</p>
+            {GROK_PROVIDERS.map((provider) => (
+              <button key={provider.providerId} type="button" onClick={() => void signIn(provider.providerId, { callbackURL: "/" })} className="min-h-10 w-full rounded-xl border border-line bg-surface text-sm font-semibold">
+                Continue with {provider.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="rounded-2xl border border-line p-3">
           <p className="mb-2 text-sm font-semibold">Edit profile</p>
           <input className={inputClass} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label={copy("namePh")} />
-          <Btn variant="soft" className="mt-2" onClick={() => draft.trim().length > 1 && setName(draft)}>{copy("save")}</Btn>
+          <Btn variant="soft" className="mt-2" disabled={savingProfile || draft.trim().length < 2 || (authEnabled && !user)} onClick={() => void saveCustomerProfile()}>
+            {savingProfile ? "Saving…" : copy("save")}
+          </Btn>
+          {profileNotice ? <p className="mt-2 text-xs text-muted">{profileNotice}</p> : null}
         </div>
 
         <div>
@@ -285,9 +360,11 @@ export function MembershipScreen() {
 
 export function RewardsScreen() {
   const back = useRaah((s) => s.back);
+  const rides = useRaah((s) => s.rides);
   const [message,setMessage] = useState("");
+  const progress = getCustomerRewardProgress(rides);
   async function invite() {
-    const inviteText = `Join me on Kida, the ride booking app. Referral rewards will be announced when the programme launches.`;
+    const inviteText = "Join me on Kida, the ride booking app. Referral rewards will be announced when the programme launches.";
     try {
       if(navigator.share) await navigator.share({title:"Kida invitation",text:inviteText});
       else if(navigator.clipboard?.writeText) { await navigator.clipboard.writeText(inviteText); setMessage("Invitation text copied."); }
@@ -298,9 +375,22 @@ export function RewardsScreen() {
     <div className="pb-8">
       <Header title="Rewards & referrals" subtitle="Your Kida rewards" onBack={back}/>
       <div className="space-y-3 px-4">
-        <Card><p className="text-xs font-semibold text-muted">AVAILABLE KIDA COINS</p><p className="mt-2 font-display text-5xl">0</p><p className="mt-1 text-sm text-muted">Your rewards wallet will appear here after the rewards service is launched.</p></Card>
+        <Card>
+          <p className="text-xs font-semibold text-muted">SIXTH-RIDE FREE OFFER</p>
+          <p className="mt-2 font-display text-3xl">5 paid rides · 1 free cab ride</p>
+          <p className="mt-2 text-sm text-muted">{progress.paidRidesTowardReward} of 5 completed paid account rides toward your next reward.</p>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-paper">
+            <div className="h-full rounded-full bg-primary" style={{ width: String(Math.min(100, progress.paidRidesTowardReward * 20)) + "%" }} />
+          </div>
+          <p className="mt-3 text-sm font-semibold">
+            {progress.rewardPending ? "Your free ride reward is reserved against a current booking."
+              : progress.rewardAvailable ? "Your free cab ride is available."
+              : String(Math.max(0, 5 - progress.paidRidesTowardReward)) + " more completed paid ride(s) to unlock it."}
+          </p>
+          <p className="mt-2 text-xs text-muted">The reward applies to Mini and 7-seater cab trips strictly below 7 km. A ride of 7 km or more is paid at the normal fare. Kida pays the Captain for a free reward trip.</p>
+        </Card>
+        <Card><p className="text-xs font-semibold text-muted">AVAILABLE KIDA COINS</p><p className="mt-2 font-display text-5xl">0</p><p className="mt-1 text-sm text-muted">Kida Coins are not part of this client-approved sixth-ride offer.</p></Card>
         <Card><p className="font-semibold">Refer a friend</p><p className="mt-1 text-sm text-muted">Invite friends to Kida. Referral codes and cash/ride credits will activate after account and rewards services are connected.</p><Btn className="mt-3 w-full" onClick={()=>void invite()}>Invite a friend</Btn>{message?<p className="mt-2 text-sm text-muted">{message}</p>:null}</Card>
-        <Card><p className="font-semibold">Reward eligibility</p><p className="mt-1 text-sm text-muted">No referral reward is being credited in this preview. We will display official rules, expiry and qualifying ride conditions before the programme is enabled.</p></Card>
       </div>
     </div>
   );
@@ -408,7 +498,37 @@ export function SosScreen() {
   const armed = useRaah((s) => s.sosArmed);
   const setArmed = useRaah((s) => s.setSosArmed);
   const emergency = useRaah((s) => s.emergency);
+  const { user, isPending } = useCurrentUserState();
   const [step, setStep] = useState(0);
+  const [recording, setRecording] = useState(false);
+  const [recordNotice, setRecordNotice] = useState("");
+
+  async function confirmSafetyReport() {
+    setArmed(true);
+    if (!user) {
+      setRecordNotice("This incident was not saved. Sign in to record it in your Kida account. Call 112 directly for emergency help.");
+      return;
+    }
+    setRecording(true);
+    setRecordNotice("");
+    try {
+      const active = useRaah.getState().rides.find(
+        (ride) => ride.id === useRaah.getState().activeRideId || ride.id === useRaah.getState().selectedRideId,
+      );
+      await createMySafetyIncident({
+        data: {
+          bookingId: active?.backendBookingId ?? null,
+          category: "sos",
+          description: "Customer confirmed the SOS incident report in the Kida app.",
+        },
+      });
+      setRecordNotice("Incident report saved to your Kida account. This record does not contact emergency services or a staffed response team. Call 112 if you need emergency help.");
+    } catch {
+      setRecordNotice("The incident could not be saved to your Kida account. Call 112 directly if you need emergency help.");
+    } finally {
+      setRecording(false);
+    }
+  }
   return (
     <div>
       <Header title={copy("sosTitle")} subtitle={copy("sosBody")} onBack={back} />
@@ -429,15 +549,17 @@ export function SosScreen() {
               <Btn variant="line" onClick={() => setStep(0)}>
                 {copy("cancel")}
               </Btn>
-              <Btn variant="danger" onClick={() => setArmed(true)}>
-                {copy("sos")}
+              <Btn variant="danger" disabled={recording || isPending} onClick={() => void confirmSafetyReport()}>
+                {recording ? "Recording…" : "Confirm incident"}
               </Btn>
             </div>
           </Card>
         ) : null}
+        {recordNotice && !armed ? <p role="status" className="rounded-xl bg-paper p-3 text-sm text-muted">{recordNotice}</p> : null}
         {armed ? (
           <Card>
             <p className="font-semibold">{copy("sosDone")}</p>
+            {recordNotice ? <p role="status" className="mt-2 text-sm text-muted">{recordNotice}</p> : null}
             <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-muted">
               <li>Saved contacts: {emergency.length ? emergency.map((item) => `${item.name} (+91 ${item.phone})`).join(", ") : "No emergency contacts added yet"}.</li>
               <li>Use Share Trip to send your trip details to someone you trust.</li>
@@ -525,6 +647,32 @@ const OFFERS = [
   { code: "REFER75", title: "Referral sample", detail: "₹75 off once. A live referral would credit both people after the trip." },
 ];
 
+function SixthRideOfferCard() {
+  const rides = useRaah((s) => s.rides);
+  const progress = getCustomerRewardProgress(rides);
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold text-primary">KIDA CUSTOMER OFFER</p>
+          <p className="mt-1 font-display text-2xl">Every 6th eligible cab ride is free</p>
+        </div>
+        <Pill tone="ok">5 + 1</Pill>
+      </div>
+      <p className="mt-2 text-sm text-muted">{progress.paidRidesTowardReward}/5 completed paid account rides toward your next free ride.</p>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-paper">
+        <div className="h-full rounded-full bg-primary" style={{ width: String(Math.min(100, progress.paidRidesTowardReward * 20)) + "%" }} />
+      </div>
+      <p className="mt-2 text-sm font-semibold">
+        {progress.rewardPending ? "Your free ride reward is reserved."
+          : progress.rewardAvailable ? "Your reward is ready for an eligible cab trip."
+          : String(Math.max(0, 5 - progress.paidRidesTowardReward)) + " more completed paid ride(s) to unlock the reward."}
+      </p>
+      <p className="mt-2 text-xs text-muted">Terms: five completed paid rides first; then one free Mini or 7-seater cab ride strictly below 7 km. A 7 km or longer ride is paid at the normal fare. Kida funds the Captain's payout for the free ride.</p>
+    </Card>
+  );
+}
+
 export function OffersScreen() {
   const copy = useCopy();
   const back = useRaah((s) => s.back);
@@ -536,6 +684,7 @@ export function OffersScreen() {
     <div className="pb-6">
       <Header title={copy("offersTitle")} subtitle={copy("offersSub")} onBack={stack.length ? back : undefined} />
       <div className="space-y-3 px-4">
+        <SixthRideOfferCard />
         {sponsor ? (
           <div className="rounded-3xl bg-paper-deep p-4">
             <p className="text-xs font-semibold text-muted">Sample sponsor · not a live advertisement</p>
@@ -629,9 +778,58 @@ export function TicketScreen() {
   const copy = useCopy();
   const back = useRaah((s) => s.back);
   const add = useRaah((s) => s.addTicket);
+  const selectedRideId = useRaah((s) => s.selectedRideId);
+  const selectedBooking = useRaah((s) => s.rides.find((ride) => ride.id === selectedRideId));
+  const { user, isPending } = useCurrentUserState();
   const [topic, setTopic] = useState("Booking");
   const [text, setText] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
   const topics = ["Booking", "Payment", "Lost item", "Driver", "Safety", "Other"];
+
+  async function submitTicket() {
+    const message = text.trim();
+    if (message.length < 4 || saving) return;
+    setSaving(true);
+    setNotice("");
+    const topicMap: Record<string, "booking" | "payment" | "lost_item" | "safety" | "other"> = {
+      Booking: "booking",
+      Payment: "payment",
+      "Lost item": "lost_item",
+      Driver: "other",
+      Safety: "safety",
+      Other: "other",
+    };
+    try {
+      const result = await createMySupportTicket({
+        data: {
+          topic: topicMap[topic] ?? "other",
+          message,
+          bookingId: selectedBooking?.backendBookingId ?? null,
+        },
+      });
+      useRaah.setState((state) => ({
+        tickets: [{
+          id: result.id,
+          topic: result.topic,
+          text: result.message,
+          status: "Open",
+          at: result.created_at,
+          backend: true,
+        }, ...state.tickets.filter((ticket) => ticket.id !== result.id)],
+        toast: "Your support request has been saved to your Kida account.",
+      }));
+      setText("");
+      back();
+    } catch (error) {
+      setNotice(error instanceof Error && error.message === "Unauthorized"
+        ? "Sign in to send a support request to your Kida account."
+        : "Your support request could not be saved. Please retry.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div>
       <Header title={copy("ticket")} subtitle={copy("ticketSent")} onBack={back} />
@@ -644,17 +842,20 @@ export function TicketScreen() {
           ))}
         </div>
         <textarea className="min-h-28 w-full rounded-2xl border border-line bg-paper p-3" value={text} onChange={(e) => setText(e.target.value)} aria-label={copy("ticket")} />
-        <Btn
-          className="w-full"
-          disabled={text.trim().length < 4}
-          onClick={() => {
-            add(topic, text.trim());
-            setText("");
-            back();
-          }}
-        >
-          {copy("save")}
+        <Btn className="w-full" disabled={saving || isPending || !user || text.trim().length < 4} onClick={() => void submitTicket()}>
+          {saving ? "Saving request…" : "Send support request"}
         </Btn>
+        {notice ? <p role="alert" className="text-sm text-muted">{notice}</p> : null}
+        {authEnabled && !user && !isPending ? (
+          <div className="space-y-2 rounded-2xl bg-paper p-3">
+            <p className="text-sm font-semibold">Sign in to submit a support request</p>
+            {GROK_PROVIDERS.map((provider) => (
+              <button key={provider.providerId} type="button" onClick={() => void signIn(provider.providerId, { callbackURL: "/" })} className="min-h-10 w-full rounded-xl border border-line bg-surface text-sm font-semibold">
+                Continue with {provider.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );

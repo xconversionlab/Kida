@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   appNameFromHost,
-  createHeadInjector,
+  createHeadInjector as createHeadInjectorRaw,
   grokXCreatorHeadTags,
-  injectGrokPwaHead,
+  injectGrokPwaHead as injectGrokPwaHeadRaw,
   isDocumentPath,
   isInstallQuery,
   publicAppHost,
@@ -20,6 +20,18 @@ import {
 import { renderInstallPage } from "./grok-pwa-plugin.mjs";
 
 const TEMPLATE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+// These unit tests supply their own fake site/host inputs. Isolate them from
+// the real workspace's public/og.jpg and src/lib/og/site.json fixtures.
+function injectGrokPwaHead(html, context = {}) {
+  const cwd = mkdtempSync(join(tmpdir(), "grok-pwa-isolated-"));
+  return injectGrokPwaHeadRaw(html, { cwd, ...context });
+}
+
+function createHeadInjector(context = {}) {
+  const cwd = mkdtempSync(join(tmpdir(), "grok-pwa-stream-isolated-"));
+  return createHeadInjectorRaw({ cwd, ...context });
+}
 
 test("injects before </head>", () => {
   const out = injectGrokPwaHead("<html><head><title>x</title></head><body></body></html>");

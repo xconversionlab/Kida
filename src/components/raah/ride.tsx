@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { cancelMyBooking, createMySupportTicket } from "@/lib/kida/server";
 import { MessageCircle, Phone, Share2, ShieldAlert } from "lucide-react";
 import { company } from "@/lib/raah/company";
 import { payLabel, vehicleLabel } from "@/lib/raah/labels";
@@ -112,19 +113,51 @@ export function TrackingScreen() {
 
 function CancelBox() {
   const copy = useCopy();
-  const cancel = useRaah((s) => s.cancelRide);
+  const cancelLocal = useRaah((s) => s.cancelRide);
+  const ride = useRide(true);
+  const setToast = useRaah((s) => s.setToast);
+  const [saving, setSaving] = useState(false);
   const reasons = ["Plans changed", "Wrong pickup", "Wait is too long", "Booked by mistake"];
+
+  async function cancel(reason: string) {
+    if (!ride || saving) return;
+    if (!ride.backendBookingId) {
+      cancelLocal(reason);
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await cancelMyBooking({ data: { bookingId: ride.backendBookingId, reason } });
+      if (!result) {
+        setToast("This booking can only be cancelled before Captain acceptance.");
+        return;
+      }
+      useRaah.setState((state) => ({
+        rides: state.rides.map((item) => item.backendBookingId === ride.backendBookingId
+          ? { ...item, status: "cancelled", backendStatus: "cancelled", cancelReason: reason }
+          : item),
+        activeRideId: null,
+        screen: "history",
+        stack: [],
+        toast: "Your booking request has been cancelled.",
+      }));
+    } catch {
+      setToast("Your booking could not be cancelled. Please retry.");
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
     <div className="rounded-2xl bg-paper p-3">
       <p className="mb-2 text-sm font-semibold">{copy("cancelWhy")}</p>
       <div className="flex flex-wrap gap-2">
         {reasons.map((reason) => (
-          <button key={reason} type="button" onClick={() => cancel(reason)} className="h-10 rounded-full bg-surface px-3 text-sm">
+          <button key={reason} type="button" disabled={saving} onClick={() => void cancel(reason)} className="h-10 rounded-full bg-surface px-3 text-sm disabled:opacity-50">
             {reason}
           </button>
         ))}
       </div>
-      <p className="mt-2 text-xs text-muted">No cancellation fee is charged in this prototype.</p>
+      <p className="mt-2 text-xs text-muted">{ride?.backendBookingId ? "Cancellation is allowed only while the request is awaiting a Captain. No cancellation fee is processed in this build." : "No cancellation fee is charged in this prototype."}</p>
     </div>
   );
 }
@@ -230,10 +263,21 @@ export function HistoryScreen() {
               </span>
               <span className="text-right">
                 <span className="block font-semibold tabular">{inr(ride.fare.total + (ride.tipAmount ?? 0))}</span>
-                <Pill tone={ride.status === "cancelled" ? "danger" : ride.status === "completed" ? "ok" : "warn"}>{ride.status}</Pill>
+                <Pill tone={ride.status === "cancelled" ? "danger" : ride.status === "completed" ? "ok" : "warn"}>
+                {ride.backendBookingId
+                  ? ride.backendStatus === "requested" ? "Request saved"
+                    : ride.backendStatus === "searching" ? "Awaiting Captain match"
+                    : ride.backendStatus === "no_captain" ? "No Captain available"
+                    : ride.backendStatus === "expired" ? "Request expired"
+                    : ride.backendStatus === "in_progress" ? "In progress"
+                    : ride.backendStatus === "completed" ? "Completed"
+                    : ride.backendStatus === "cancelled" ? "Cancelled"
+                    : ride.backendStatus?.replaceAll("_", " ") ?? "Backend booking"
+                  : ride.status}
+              </Pill>
               </span>
             </button>
-            {ride.status === "scheduled" ? (
+            {ride.status === "scheduled" && !ride.backendBookingId ? (
               <Btn className="mt-3 w-full" variant="soft" onClick={() => start(ride.id)}>
                 {copy("bookNow")}
               </Btn>
@@ -268,12 +312,93 @@ export function RideDetail() {
   const report = useRaah((s) => s.reportOnRide);
   const [lost, setLost] = useState("");
   const [issue, setIssue] = useState("");
+  const [reporting, setReporting] = useState(false);
+  const [reportNotice, setReportNotice] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelNotice, setCancelNotice] = useState("");
   if (!ride) return null;
+  const selectedRide = ride;
+
+  async function cancelBookingRequest() {
+    if (!selectedRide.backendBookingId || cancelling) return;
+    setCancelling(true);
+    setCancelNotice("");
+    try {
+      const result = await cancelMyBooking({
+        data: { bookingId: selectedRide.backendBookingId, reason: "Cancelled by customer" },
+      });
+      if (!result) {
+        setCancelNotice("This booking can only be cancelled while it is awaiting a Captain.");
+        return;
+      }
+      useRaah.setState((state) => ({
+        rides: state.rides.map((item) => item.backendBookingId === selectedRide.backendBookingId
+          ? { ...item, status: "cancelled", backendStatus: "cancelled", cancelReason: "Cancelled by customer" }
+          : item),
+        activeRideId: null,
+        toast: "Your booking request has been cancelled.",
+      }));
+    } catch {
+      setCancelNotice("Cancellation failed. Please retry.");
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  async function submitRideReport(kind: "issue" | "lost", message: string) {
+    const clean = message.trim();
+    if (clean.length < 3 || reporting) return;
+    if (!selectedRide.backendBookingId) {
+      report(kind, clean);
+      if (kind === "lost") setLost("");
+      else setIssue("");
+      return;
+    }
+    setReporting(true);
+    setReportNotice("");
+    try {
+      const result = await createMySupportTicket({
+        data: {
+          bookingId: selectedRide.backendBookingId,
+          topic: kind === "lost" ? "lost_item" : "booking",
+          message: clean,
+        },
+      });
+      useRaah.setState((state) => ({
+        tickets: [{
+          id: result.id,
+          topic: result.topic,
+          text: result.message,
+          status: "Open",
+          at: result.created_at,
+          backend: true,
+        }, ...state.tickets.filter((ticket) => ticket.id !== result.id)],
+      }));
+      setReportNotice("Your report has been saved to your Kida account. No Captain or support agent has been notified yet.");
+      if (kind === "lost") setLost("");
+      else setIssue("");
+    } catch {
+      setReportNotice("Your report could not be saved. Please retry or call Kida support.");
+    } finally {
+      setReporting(false);
+    }
+  }
   return (
     <div className="pb-8">
       <Header title={copy("receipt")} subtitle={new Date(ride.createdAt).toLocaleString("en-IN")} onBack={back} />
       <div className="space-y-3 px-4">
-        <p className="text-sm text-muted">{ride.source === "call" ? "Booked by the call desk · prototype" : "Booked in the app · prototype"}</p>
+        <p className="text-sm text-muted">{selectedRide.backendBookingId ? "Customer booking request saved to your Kida account" : ride.source === "call" ? "Booked by the call desk · prototype" : "Booked in the app · prototype"}</p>
+        {selectedRide.backendBookingId ? (
+          <div className="space-y-2 rounded-xl bg-primary-soft p-3">
+            <p className="text-xs text-muted">Current backend status: {ride.backendStatus?.replaceAll("_", " ")}. Captain matching, live tracking and payment are not connected yet.</p>
+            {ride.backendStatus === "requested" || ride.backendStatus === "searching" ? (
+              <Btn variant="line" className="w-full" disabled={cancelling} onClick={() => void cancelBookingRequest()}>
+                {cancelling ? "Cancelling…" : "Cancel booking request"}
+              </Btn>
+            ) : null}
+            {cancelNotice ? <p role="alert" className="text-xs text-danger">{cancelNotice}</p> : null}
+          </div>
+        ) : null}
         <StopLine label={copy("from")} value={ride.pickup.line} />
         {(ride.stops ?? []).map((stop,index)=><StopLine key={stop.landmarkId+"-"+index} label={`Stop ${index+1}`} value={stop.line}/>) }
         <StopLine label={copy("to")} value={ride.drop.line} />
@@ -285,7 +410,7 @@ export function RideDetail() {
           <Row k={copy("total")} v={inr(ride.fare.total)} />
           {(ride.tipAmount ?? 0) > 0 ? <Row k="Captain tip (preview only)" v={inr(ride.tipAmount ?? 0)} /> : null}
           <p className="mt-2 text-sm text-muted">
-            {vehicleLabel(lang, ride.vehicle)} · {payLabel(lang, ride.payment)} · {ride.status}
+            {vehicleLabel(lang, ride.vehicle)} · {payLabel(lang, ride.payment)} · {ride.backendStatus?.replaceAll("_", " ") ?? ride.status}
           </p>
           {ride.driver ? (
             <p className="mt-1 text-sm">
@@ -299,16 +424,17 @@ export function RideDetail() {
           {copy("lost")}
           <input className={`${inputClass} mt-1`} value={lost} onChange={(e) => setLost(e.target.value)} />
         </label>
-        <Btn variant="line" className="w-full" disabled={lost.trim().length < 3} onClick={() => report("lost", lost)}>
-          {copy("lost")}
+        <Btn variant="line" className="w-full" disabled={reporting || lost.trim().length < 3} onClick={() => void submitRideReport("lost", lost)}>
+          {reporting ? "Saving report…" : copy("lost")}
         </Btn>
         <label className="block text-sm font-medium">
           {copy("issue")}
           <textarea className="mt-1 min-h-20 w-full rounded-2xl border border-line bg-paper p-3" value={issue} onChange={(e) => setIssue(e.target.value)} />
         </label>
-        <Btn variant="soft" className="w-full" disabled={issue.trim().length < 3} onClick={() => report("issue", issue)}>
-          {copy("issue")}
+        <Btn variant="soft" className="w-full" disabled={reporting || issue.trim().length < 3} onClick={() => void submitRideReport("issue", issue)}>
+          {reporting ? "Saving report…" : copy("issue")}
         </Btn>
+        {reportNotice ? <p role="status" className="text-sm text-muted">{reportNotice}</p> : null}
       </div>
     </div>
   );

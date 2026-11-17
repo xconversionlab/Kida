@@ -8,13 +8,18 @@ export const VEHICLES: {
   arrival: number;
   speed: number;
   minFare: number;
+  availableForBooking?: boolean;
 }[] = [
-  { id: "bike", capacity: 1, base: 25, perKm: 7, arrival: 3, speed: 24, minFare: 30 },
-  { id: "auto", capacity: 3, base: 35, perKm: 13, arrival: 5, speed: 20, minFare: 45 },
-  { id: "mini", capacity: 4, base: 60, perKm: 14, arrival: 6, speed: 26, minFare: 80 },
-  { id: "sedan", capacity: 4, base: 90, perKm: 18, arrival: 8, speed: 28, minFare: 120 },
-  { id: "xl", capacity: 6, base: 120, perKm: 22, arrival: 11, speed: 26, minFare: 160 },
+  // Client-approved customer rate card. No separate base/minimum fare is added.
+  { id: "bike", capacity: 1, base: 0, perKm: 15, arrival: 3, speed: 24, minFare: 0 },
+  { id: "auto", capacity: 3, base: 0, perKm: 20, arrival: 5, speed: 20, minFare: 0 },
+  { id: "mini", capacity: 4, base: 0, perKm: 25, arrival: 6, speed: 26, minFare: 0 },
+  // Sedan has no client-approved rate yet; retain its type for existing records but hide it from new bookings.
+  { id: "sedan", capacity: 4, base: 0, perKm: 0, arrival: 8, speed: 28, minFare: 0, availableForBooking: false },
+  { id: "xl", capacity: 7, base: 0, perKm: 30, arrival: 11, speed: 26, minFare: 0 },
 ];
+
+export const BOOKABLE_VEHICLES = VEHICLES.filter((vehicle) => vehicle.availableForBooking !== false);
 
 export const PAY_METHODS: PayMethod[] = ["upi", "qr", "credit", "debit", "netbanking", "cash"];
 
@@ -36,6 +41,7 @@ export function kmBetween(a: { lat: number; lng: number }, b: { lat: number; lng
 }
 
 export function availability(id: VehicleId, km: number, kind: PlaceKind): Availability {
+  if (vehicleMeta(id).availableForBooking === false) return "unavailable";
   if (id === "bike" && km > 80) return "unavailable";
   if (id === "auto" && km > 45) return "unavailable";
   if (id === "bike" && (km > 25 || kind === "village")) return "limited";
@@ -102,8 +108,10 @@ export function quoteRide(
   const waiting = 0;
   const discount = promo?.ok ? promo.discount : 0;
   const taxable = Math.max(0, base + distanceCharge + waiting - discount);
-  const tax = Math.round(taxable * 0.05);
-  const total = avail === "unavailable" ? 0 : Math.max(meta.minFare, taxable + tax);
+  // The client supplied per-kilometre rates are shown as the fare. Tax/base/minimum
+  // add-ons are not introduced until the client approves them.
+  const tax = 0;
+  const total = avail === "unavailable" ? 0 : Math.max(meta.minFare, taxable);
   const speed = meta.speed + Math.min(22, km * 0.35);
   const minutes = Math.max(4, Math.round((km / speed) * 60));
   const arrivalMin = meta.arrival + (kind === "village" ? 4 : kind === "town" ? 2 : 0);
@@ -128,4 +136,28 @@ export function inr(n: number) {
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(n);
+}
+
+
+export const PLATFORM_COMMISSION_PERCENT = 20;
+export const CAPTAIN_SHARE_PERCENT = 80;
+
+/** Fare allocation for a normal trip or a company-funded sixth-ride reward. */
+export function calculateFareAllocation(customerFare: number, companyFundedFreeRide = false) {
+  const grossFare = Math.max(0, Math.round(customerFare));
+  if (companyFundedFreeRide) {
+    return {
+      customerPays: 0,
+      captainReceives: grossFare,
+      companyCommission: 0,
+      companySubsidy: grossFare,
+    };
+  }
+  const companyCommission = Math.round((grossFare * PLATFORM_COMMISSION_PERCENT) / 100);
+  return {
+    customerPays: grossFare,
+    captainReceives: grossFare - companyCommission,
+    companyCommission,
+    companySubsidy: 0,
+  };
 }

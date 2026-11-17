@@ -3,7 +3,7 @@ import { company } from "@/lib/raah/company";
 import { t } from "@/lib/raah/i18n";
 import { payLabel, vehicleLabel } from "@/lib/raah/labels";
 import { getPlace, searchPlaces, toSelection } from "@/lib/raah/places";
-import { inr, kmBetween, quoteRide, VEHICLES } from "@/lib/raah/pricing";
+import { BOOKABLE_VEHICLES, inr, kmBetween, quoteRide } from "@/lib/raah/pricing";
 import { DESK_CALLS, useRaah } from "@/lib/raah/store";
 import type { VehicleId } from "@/lib/raah/types";
 import { MapView } from "./MapView";
@@ -128,7 +128,7 @@ export function OperatorConsole({ onBack }: { onBack?: () => void }) {
             ))}
           </div>
           <div className="flex gap-2 overflow-x-auto">
-            {VEHICLES.map((item) => (
+            {BOOKABLE_VEHICLES.map((item) => (
               <button
                 key={item.id}
                 type="button"

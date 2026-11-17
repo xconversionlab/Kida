@@ -1,8 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createMyBooking } from "@/lib/kida/server";
+import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
+import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getPlace } from "@/lib/raah/places";
 import { getGoogleDrivingRoute, hasGoogleMapsKey, type DrivingRoutePreview } from "@/lib/raah/googleMaps";
 import { payLabel, promoReason, vehicleLabel } from "@/lib/raah/labels";
-import { inr, kmBetween, quoteRide, resolvePromo, VEHICLES, type PromoResult } from "@/lib/raah/pricing";
+import { BOOKABLE_VEHICLES, calculateFareAllocation, inr, kmBetween, quoteRide, resolvePromo, type PromoResult } from "@/lib/raah/pricing";
+import { CUSTOMER_FREE_RIDE_CODE, getCustomerRewardProgress, isEligibleCustomerFreeRide } from "@/lib/raah/rewards";
 import { useRaah } from "@/lib/raah/store";
 import type { VehicleId } from "@/lib/raah/types";
 import { VehicleArt } from "./art";
@@ -91,7 +95,7 @@ export function VehiclesScreen() {
       <div className="space-y-3 px-4">
         <MapView pickup={trip.pickup} drop={trip.drop} stops={trip.stops} routePath={trip.routePath} className="h-44" />
         <RouteAccuracy trip={trip} />
-        {VEHICLES.map((item) => {
+        {BOOKABLE_VEHICLES.map((item) => {
           const fare = quoteForTrip(item.id, trip.km, trip.place.kind, null, trip.route);
           const selected = vehicle === item.id;
           const blocked = fare.availability === "unavailable";
@@ -145,6 +149,7 @@ export function FareScreen() {
   const lang = useRaah((s) => s.lang);
   const vehicle = useRaah((s) => s.vehicle);
   const payment = useRaah((s) => s.payment);
+  const rides = useRaah((s) => s.rides);
   const removeStop = useRaah((s) => s.removeStop);
   const setTarget = useRaah((s) => s.setPlaceTarget);
   const promoInput = useRaah((s) => s.promoInput);
@@ -159,14 +164,28 @@ export function FareScreen() {
   const trip = useTripKm();
   const [note, setNote] = useState("");
   if (!trip) return null;
-  const fare = quoteForTrip(vehicle, trip.km, trip.place.kind, promo, trip.route);
+
+  const rewardProgress = getCustomerRewardProgress(rides);
+  const rewardApplied = isEligibleCustomerFreeRide(rewardProgress, vehicle, trip.km);
+  const standardFare = quoteForTrip(vehicle, trip.km, trip.place.kind, null, trip.route);
+  const fare = rewardApplied
+    ? { ...standardFare, discount: standardFare.total, total: 0, promoCode: CUSTOMER_FREE_RIDE_CODE }
+    : quoteForTrip(vehicle, trip.km, trip.place.kind, promo, trip.route);
+  const allocation = calculateFareAllocation(fare.total, false);
   const blocked = fare.availability === "unavailable";
   const invalidSchedule = when !== "now" && new Date(when).getTime() <= Date.now();
+
   function apply() {
+    if (rewardApplied) {
+      setNote("Your sixth-ride reward is applied automatically. Promo codes cannot be combined with this free ride.");
+      setPromo(null);
+      return;
+    }
     const result: PromoResult = resolvePromo(promoInput, fare.base + fare.distanceCharge, vehicle, trip!.place.kind, used);
     setNote(promoReason(result.reason));
     setPromo(result.ok ? result : null);
   }
+
   return (
     <div className="pb-8">
       <Header title={copy("fareDetails")} subtitle={copy("fareNote")} onBack={back} />
@@ -187,19 +206,34 @@ export function FareScreen() {
             + Add stop {trip.stops.length}/3
           </button>
         </div>
-        <Row label={copy("base")} value={inr(fare.base)} />
-        <Row label={`${copy("distance")} · ${fare.km} km`} value={inr(fare.distanceCharge)} />
-        <Row label={copy("waiting")} value={inr(fare.waiting)} />
-        <Row label={copy("discount")} value={fare.discount ? `−${inr(fare.discount)}` : inr(0)} />
-        <Row label={copy("tax")} value={inr(fare.tax)} />
+        <Row label={copy("distance") + " · " + trip.km + " km × ₹" + (BOOKABLE_VEHICLES.find((item) => item.id === vehicle)?.perKm ?? 0) + "/km"} value={inr(rewardApplied ? standardFare.total : fare.distanceCharge)} />
+        {fare.discount > 0 ? <Row label="Reward / discount" value={"−" + inr(fare.discount)} /> : null}
         <div className="flex items-center justify-between border-t border-line pt-3">
           <span className="font-semibold">{copy("total")}</span>
           <span className="font-display text-3xl tabular">{blocked ? "—" : inr(fare.total)}</span>
         </div>
+        {rewardApplied ? (
+          <div className="rounded-2xl border border-primary bg-primary-soft p-3">
+            <p className="font-semibold text-primary">Your sixth ride is free</p>
+            <p className="mt-1 text-sm text-muted">This cab route is below 7 km. Kida will fund the Captain's full fare for this reward ride.</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-line p-3">
+            <p className="text-sm font-semibold">Fare allocation · included in your fare</p>
+            <Row label="Captain earnings (80%)" value={inr(allocation.captainReceives)} />
+            <Row label="Kida platform fee (20%)" value={inr(allocation.companyCommission)} />
+            <p className="mt-1 text-xs text-muted">The 20% platform share is included in the listed fare; it is not added as a separate surcharge.</p>
+          </div>
+        )}
+        {rewardProgress.rewardPending ? (
+          <p className="rounded-xl bg-paper p-3 text-sm text-muted">Your sixth-ride reward is already attached to a booking. Complete or cancel that booking before another reward can be used.</p>
+        ) : rewardProgress.rewardAvailable && !rewardApplied ? (
+          <p className="rounded-xl bg-paper p-3 text-sm text-muted">You have a free cab ride available. Choose a cab route strictly below 7 km to use it; a 7 km or longer trip remains paid.</p>
+        ) : null}
         <p className="text-xs text-muted">{copy("waitingNote")}</p>
         <div className="flex gap-2">
-          <input className={inputClass} value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())} placeholder={copy("promoPh")} aria-label={copy("promo")} />
-          <Btn variant="soft" className="shrink-0" onClick={apply}>
+          <input className={inputClass} value={promoInput} onChange={(e) => setPromoInput(e.target.value.toUpperCase())} placeholder={copy("promoPh")} aria-label={copy("promo")} disabled={rewardApplied} />
+          <Btn variant="soft" className="shrink-0" onClick={apply} disabled={rewardApplied}>
             {copy("apply")}
           </Btn>
         </div>
@@ -243,14 +277,73 @@ export function ConfirmScreen() {
   const vehicle = useRaah((s) => s.vehicle);
   const payment = useRaah((s) => s.payment);
   const when = useRaah((s) => s.when);
+  const rides = useRaah((s) => s.rides);
   const womenPreference = useRaah((s) => s.womenDriverPreference);
   const setWomenPreference = useRaah((s) => s.setWomenDriverPreference);
   const back = useRaah((s) => s.back);
   const confirm = useRaah((s) => s.confirmBooking);
   const trip = useTripKm();
   const place = getPlace(pickup.placeId);
+  const { user, isPending: authPending } = useCurrentUserState();
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const requestId = useRef<string | null>(null);
   if (!drop || !place || !trip) return null;
-  const fare = quoteForTrip(vehicle, trip.km, place.kind, useRaah.getState().promo, trip.route);
+  const bookingTrip = trip;
+  const rewardProgress = getCustomerRewardProgress(rides);
+  const rewardApplied = isEligibleCustomerFreeRide(rewardProgress, vehicle, bookingTrip.km);
+  const standardFare = quoteForTrip(vehicle, bookingTrip.km, place.kind, null, bookingTrip.route);
+  const fare = rewardApplied
+    ? { ...standardFare, discount: standardFare.total, total: 0, promoCode: CUSTOMER_FREE_RIDE_CODE }
+    : quoteForTrip(vehicle, bookingTrip.km, place.kind, useRaah.getState().promo, bookingTrip.route);
+  const regularTotal = rewardApplied ? standardFare.total : fare.total;
+
+  async function saveBooking() {
+    if (!user || saving) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      requestId.current ??= crypto.randomUUID();
+      const result = await createMyBooking({
+        data: {
+          clientRequestId: requestId.current,
+          serviceMode: "ride",
+          vehicleId: vehicle,
+          paymentMethod: payment,
+          womenDriverRequested: womenPreference,
+          pickup,
+          dropoff: drop,
+          stops: bookingTrip.stops,
+          scheduledFor: when === "now" ? null : new Date(when).toISOString(),
+          customerRewardCode: rewardApplied ? CUSTOMER_FREE_RIDE_CODE : null,
+          farePreview: {
+            km: Math.round(bookingTrip.km * 10) / 10,
+            minutes: Math.ceil(fare.minutes),
+            total: Math.round(fare.total),
+            regularTotal: Math.round(regularTotal),
+            currency: "INR",
+          },
+        },
+      });
+      if (result.status !== "requested") {
+        throw new Error("The booking was saved with an unexpected status. Refresh your booking history.");
+      }
+      if (rewardApplied && !result.is_free_ride) {
+        throw new Error("Your sixth-ride reward could not be reserved. Refresh your rides and try again.");
+      }
+      requestId.current = null;
+      confirm(bookingTrip.route?.distanceKm, bookingTrip.route?.durationMinutes, bookingTrip.route?.path, {
+        id: result.id,
+        status: "requested",
+        isFreeRide: result.is_free_ride,
+      });
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Your booking could not be saved. Please retry.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="pb-8">
       <Header title={copy("confirmRide")} subtitle={copy("proto")} onBack={back} />
@@ -258,7 +351,7 @@ export function ConfirmScreen() {
         <MapView pickup={pickup} drop={drop} stops={trip.stops} routePath={trip.routePath} className="h-44" />
         <RouteAccuracy trip={trip} />
         <Stop label={copy("from")} title={pickup.label} line={pickup.line} />
-        {trip.stops.map((stop,index)=><Stop key={stop.landmarkId+"-"+index} label={`Stop ${index+1}`} title={stop.label} line={stop.line}/>)}
+        {trip.stops.map((stop,index)=><Stop key={stop.landmarkId+"-"+index} label={`Stop ${index+1}`} title={stop.label} line={stop.line}/> )}
         <Stop label={copy("to")} title={drop.label} line={drop.line} />
         {(place.kind === "village" || place.kind === "town") && <p className="text-sm text-accent">{copy("villageNote")}</p>}
         <div className="flex items-center gap-3 rounded-3xl border border-line p-3">
@@ -268,15 +361,39 @@ export function ConfirmScreen() {
             <p className="text-sm text-muted">
               {payLabel(lang, payment)} · {when === "now" ? copy("now") : when.replace("T", " ")}
             </p>
+            {rewardApplied ? <p className="text-xs font-semibold text-primary">Sixth-ride reward · Kida-funded Captain payout</p> : null}
           </div>
           <p className="font-display text-2xl tabular">{inr(fare.total)}</p>
         </div>
         <button type="button" aria-pressed={womenPreference} onClick={()=>setWomenPreference(!womenPreference)} className={`flex min-h-14 w-full items-center justify-between rounded-2xl border px-3 text-left ${womenPreference?"border-primary bg-primary-soft":"border-line"}`}>
           <span><span className="block text-sm font-semibold">Request a woman driver</span><span className="block text-xs text-muted">Preference only · subject to availability and launch support</span></span><span className={`h-6 w-11 rounded-full p-1 ${womenPreference?"bg-primary":"bg-line"}`}><span className={`block size-4 rounded-full bg-white ${womenPreference?"ml-5":""}`}/></span>
         </button>
-        <Btn className="w-full" disabled={trip.routeState === "loading"} onClick={() => confirm(trip.route?.distanceKm, trip.route?.durationMinutes, trip.route?.path)}>
-          {when === "now" ? copy("confirmRide") : copy("scheduleTitle")}
-        </Btn>
+        {authPending ? (
+          <p className="rounded-2xl bg-paper px-3 py-3 text-sm text-muted">Checking your Kida account…</p>
+        ) : authEnabled && !user ? (
+          <div className="space-y-3 rounded-2xl border border-primary/30 bg-primary-soft p-3">
+            <div>
+              <p className="font-semibold">Sign in to save this booking</p>
+              <p className="mt-1 text-sm text-muted">Your ride request will be stored under your Kida account. Use a verified account session to continue.</p>
+            </div>
+            {GROK_PROVIDERS.map((provider) => (
+              <button
+                key={provider.providerId}
+                type="button"
+                onClick={() => void signIn(provider.providerId, { callbackURL: "/" })}
+                className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-sm font-semibold"
+              >
+                Continue with {provider.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Btn className="w-full" disabled={saving || trip.routeState === "loading"} onClick={() => void saveBooking()}>
+            {saving ? "Saving booking…" : when === "now" ? copy("confirmRide") : copy("scheduleTitle")}
+          </Btn>
+        )}
+        {saveError ? <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">{saveError}</p> : null}
+        <p className="text-xs text-muted">This records your booking request and fare estimate. Captain matching, live tracking and payment are not connected yet. Final free-ride distance eligibility must be verified against the live road route before launch.</p>
       </div>
     </div>
   );
