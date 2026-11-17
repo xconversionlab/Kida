@@ -73,7 +73,8 @@ function selectionFromBackend(value: BackendSelection, kind: "pickup" | "drop"):
   };
 }
 
-function uiStatus(status: BackendBookingStatus): Ride["status"] {
+function uiStatus(status: BackendBookingStatus, scheduledFor: string | null): Ride["status"] {
+  if (status === "requested" && scheduledFor) return "scheduled";
   if (status === "completed") return "completed";
   if (status === "cancelled" || status === "expired" || status === "no_captain") return "cancelled";
   if (status === "accepted" || status === "captain_arriving" || status === "arrived") return "arriving";
@@ -97,7 +98,7 @@ function mapBooking(booking: BackendBooking): Ride {
     id: booking.id,
     backendBookingId: booking.id,
     backendStatus: booking.status,
-    status: uiStatus(booking.status),
+    status: uiStatus(booking.status, booking.scheduled_for),
     pickup: selectionFromBackend(booking.pickup, "pickup"),
     drop: selectionFromBackend(booking.dropoff, "drop"),
     stops: booking.stops.map((stop) => selectionFromBackend(stop, "drop")),
@@ -145,7 +146,7 @@ function mapTicket(ticket: BackendTicket): Ticket {
 }
 
 /** Fetch and replace account-owned customer data from the server. */
-export async function syncMyKidaData() {
+export async function syncMyKidaData(shouldApply: () => boolean = () => true) {
   const [profile, bookings, tickets] = await Promise.all([
     getMyProfile(),
     listMyBookings(),
@@ -154,16 +155,18 @@ export async function syncMyKidaData() {
   const rides = bookings.map(mapBooking);
   const mappedTickets = tickets.map(mapTicket);
 
-  useRaah.setState((state) => ({
-    name: profile?.display_name?.trim() || state.name,
-    phone: profile?.phone_e164?.startsWith("+91")
-      ? profile.phone_e164.slice(3)
-      : profile?.phone_e164 ?? state.phone,
-    rides,
-    activeRideId: null,
-    selectedRideId: rides[0]?.id ?? null,
-    tickets: mappedTickets,
-  }));
+  if (shouldApply()) {
+    useRaah.setState({
+      name: profile?.display_name?.trim() ?? "",
+      phone: profile?.phone_e164?.startsWith("+91")
+        ? profile.phone_e164.slice(3)
+        : profile?.phone_e164 ?? "",
+      rides,
+      activeRideId: null,
+      selectedRideId: rides[0]?.id ?? null,
+      tickets: mappedTickets,
+    });
+  }
 
   return { profile, bookings: rides, tickets: mappedTickets };
 }
@@ -192,7 +195,7 @@ export function useKidaCustomerSync(enabled: boolean) {
     }
 
     let active = true;
-    void syncMyKidaData().catch((error: unknown) => {
+    void syncMyKidaData(() => active).catch((error: unknown) => {
       if (!active) return;
       const message = error instanceof Error ? error.message : "Could not load your Kida account data.";
       useRaah.setState({ toast: message === "Unauthorized" ? "Please sign in to sync your Kida account." : "Your account data could not be refreshed. Try again." });
