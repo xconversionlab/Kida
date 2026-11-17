@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - "client-approval/customer-app"
+      - "backend-v1/customer-data"
     paths:
       - "android-wrapper/**"
       - "src/**"
@@ -25,7 +26,7 @@ jobs:
       - name: Checkout Kida customer app
         uses: actions/checkout@v4
         with:
-          ref: client-approval/customer-app
+          ref: ${{ github.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
