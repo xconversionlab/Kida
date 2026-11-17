@@ -51,3 +51,14 @@ Preserve these client requirements for Phase 2:
 ## Working rule
 
 At each project checkpoint, state the goal in one line: **Customer app first; APK delivery and client approval next; driver app only after approval.** Work directly in this repository and verify each change.
+
+
+## Client commercial update — 17 November 2026
+
+- Customer rate card: E-Bike ₹15/km, Auto ₹20/km, Mini cab ₹25/km, 7-seater cab ₹30/km.
+- Customer reward: after five completed paid account rides, one free ride on the next eligible cab trip strictly below 7 km. Trips at or above 7 km remain paid; the reward stays available for a later qualifying cab trip. Kida funds the Captain payout for a redeemed free ride.
+- Normal completed-trip split: 80% Captain earnings and 20% Kida platform commission, included in the fare allocation rather than added as an extra 20% customer surcharge.
+- Partner Phase 2: ₹200 daily bonus after 15 completed rides for Auto and cab Captains only; E-Bike Captains are excluded.
+- Partner Phase 2: compulsory opening ledger balance; Captains below the configured required balance cannot accept trips. The required amount has not yet been supplied by the client and must not be guessed.
+- If a customer pays the Captain directly, the company commission is debited from the Captain ledger and may be reconciled against future earnings/top-ups.
+- The existing Sedan category is not shown for new bookings until its client-approved rate is supplied.
