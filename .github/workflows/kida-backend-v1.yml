@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "backend-v1/customer-data"
+      - "feature/open-maps"
     paths:
       - "src/**"
       - "migrations/**"
@@ -15,6 +16,7 @@ on:
   pull_request:
     branches:
       - "client-approval/customer-app"
+      - "backend-v1/customer-data"
     paths:
       - "src/**"
       - "migrations/**"
