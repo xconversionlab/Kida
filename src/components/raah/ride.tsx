@@ -314,7 +314,35 @@ export function RideDetail() {
   const [issue, setIssue] = useState("");
   const [reporting, setReporting] = useState(false);
   const [reportNotice, setReportNotice] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelNotice, setCancelNotice] = useState("");
   if (!ride) return null;
+
+  async function cancelBookingRequest() {
+    if (!ride.backendBookingId || cancelling) return;
+    setCancelling(true);
+    setCancelNotice("");
+    try {
+      const result = await cancelMyBooking({
+        data: { bookingId: ride.backendBookingId, reason: "Cancelled by customer" },
+      });
+      if (!result) {
+        setCancelNotice("This booking can only be cancelled while it is awaiting a Captain.");
+        return;
+      }
+      useRaah.setState((state) => ({
+        rides: state.rides.map((item) => item.backendBookingId === ride.backendBookingId
+          ? { ...item, status: "cancelled", backendStatus: "cancelled", cancelReason: "Cancelled by customer" }
+          : item),
+        activeRideId: null,
+        toast: "Your booking request has been cancelled.",
+      }));
+    } catch {
+      setCancelNotice("Cancellation failed. Please retry.");
+    } finally {
+      setCancelling(false);
+    }
+  }
 
   async function submitRideReport(kind: "issue" | "lost", message: string) {
     const clean = message.trim();
@@ -359,7 +387,17 @@ export function RideDetail() {
       <Header title={copy("receipt")} subtitle={new Date(ride.createdAt).toLocaleString("en-IN")} onBack={back} />
       <div className="space-y-3 px-4">
         <p className="text-sm text-muted">{ride.backendBookingId ? "Customer booking request saved to your Kida account" : ride.source === "call" ? "Booked by the call desk · prototype" : "Booked in the app · prototype"}</p>
-        {ride.backendBookingId ? <p className="rounded-xl bg-primary-soft p-3 text-xs text-muted">Current backend status: {ride.backendStatus?.replaceAll("_", " ")}. Captain matching, live tracking and payment are not connected yet.</p> : null}
+        {ride.backendBookingId ? (
+          <div className="space-y-2 rounded-xl bg-primary-soft p-3">
+            <p className="text-xs text-muted">Current backend status: {ride.backendStatus?.replaceAll("_", " ")}. Captain matching, live tracking and payment are not connected yet.</p>
+            {ride.backendStatus === "requested" || ride.backendStatus === "searching" ? (
+              <Btn variant="line" className="w-full" disabled={cancelling} onClick={() => void cancelBookingRequest()}>
+                {cancelling ? "Cancelling…" : "Cancel booking request"}
+              </Btn>
+            ) : null}
+            {cancelNotice ? <p role="alert" className="text-xs text-danger">{cancelNotice}</p> : null}
+          </div>
+        ) : null}
         <StopLine label={copy("from")} value={ride.pickup.line} />
         {(ride.stops ?? []).map((stop,index)=><StopLine key={stop.landmarkId+"-"+index} label={`Stop ${index+1}`} value={stop.line}/>) }
         <StopLine label={copy("to")} value={ride.drop.line} />
