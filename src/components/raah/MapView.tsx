@@ -74,12 +74,14 @@ function LeafletMapView({
   drop,
   stops = [],
   routePath,
+  caption,
   className = "h-64",
 }: {
   pickup?: Selection | null;
   drop?: Selection | null;
   stops?: Selection[];
   routePath?: MapPoint[];
+  caption?: string;
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -283,7 +285,7 @@ function LeafletMapView({
         {gpsState === "locating" ? "Locating…" : gpsState === "live" ? "GPS live" : "My location"}
       </button>
       <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] max-w-[72%] rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-medium text-ink shadow-sm">
-        {mapError
+        {caption || (mapError
           ? "Map unavailable · check your internet"
           : gpsState === "live"
             ? "Your device location is updating"
@@ -291,7 +293,7 @@ function LeafletMapView({
               ? "Location permission unavailable"
               : pickup && drop
                 ? routePath?.length ? "Google road route · traffic-aware estimate" : "Dashed line · approximate route only"
-                : "India-wide roads and places"}
+                : "India-wide roads and places")}
       </div>
       {!mapReady && !mapError ? (
         <div className="absolute inset-0 z-[900] grid place-items-center bg-[#e9eee8]/90 text-sm font-medium text-ink">
@@ -313,6 +315,7 @@ export function MapView(props: {
   drop?: Selection | null;
   stops?: Selection[];
   routePath?: MapPoint[];
+  caption?: string;
   className?: string;
 }) {
   return hasGoogleMapsKey ? <GoogleMapView {...props} /> : <LeafletMapView {...props} />;
@@ -323,12 +326,14 @@ function GoogleMapView({
   drop,
   stops = [],
   routePath,
+  caption,
   className = "h-64",
 }: {
   pickup?: Selection | null;
   drop?: Selection | null;
   stops?: Selection[];
   routePath?: MapPoint[];
+  caption?: string;
   className?: string;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -521,7 +526,7 @@ function GoogleMapView({
         {gpsState === "locating" ? "Locating…" : gpsState === "live" ? "GPS live" : "My location"}
       </button>
       <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] max-w-[72%] rounded-full bg-white/95 px-3 py-1.5 text-[10px] font-medium text-ink shadow-sm">
-        {mapError || (gpsState === "error" ? "Location permission unavailable" : gpsState === "live" ? "Your device location is updating" : routePath?.length ? "Google road route · traffic-aware estimate" : pickup && drop ? "Straight-line preview · road route not configured" : "Google Maps · India")}
+        {caption || mapError || (gpsState === "error" ? "Location permission unavailable" : gpsState === "live" ? "Your device location is updating" : routePath?.length ? "Google road route · traffic-aware estimate" : pickup && drop ? "Straight-line preview · road route not configured" : "Google Maps · India")}
       </div>
       {!mapReady && !mapError ? (
         <div className="absolute inset-0 z-[900] grid place-items-center bg-[#e9eee8]/90 text-sm font-medium text-ink">Loading Google Maps…</div>
