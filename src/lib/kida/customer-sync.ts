@@ -3,6 +3,7 @@ import { getPlace } from "@/lib/raah/places";
 import { useRaah } from "@/lib/raah/store";
 import type { PayMethod, Ride, Selection, Ticket, VehicleId } from "@/lib/raah/types";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { authEnabled } from "@/lib/auth/client";
 import {
   getMyProfile,
   listMyBookings,
@@ -182,6 +183,7 @@ export function useKidaCustomerSync(enabled: boolean) {
     if (!enabled || isPending) return;
     if (!user) {
       useRaah.setState((state) => ({
+        ...(authEnabled ? { name: "", phone: "" } : {}),
         rides: state.rides.filter((ride) => !ride.backendBookingId),
         tickets: state.tickets.filter((ticket) => !ticket.backend),
         activeRideId: state.activeRideId && state.rides.some(
