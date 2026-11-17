@@ -219,7 +219,7 @@ interface RaahState {
   setPromoInput: (value: string) => void;
   setPromo: (promo: PromoResult | null) => void;
   setWhen: (when: string) => void;
-  confirmBooking: (routeDistanceKm?: number, roadDurationMinutes?: number, routePath?: RouteCoordinate[]) => void;
+  confirmBooking: (routeDistanceKm?: number, roadDurationMinutes?: number, routePath?: RouteCoordinate[], backendBooking?: { id: string; status: "requested" }) => void;
   assignDriver: () => void;
   tickRide: () => void;
   completeRide: () => void;
@@ -400,7 +400,7 @@ export const useRaah = create<RaahState>()(
       setPromoInput: (promoInput) => set({ promoInput }),
       setPromo: (promo) => set({ promo, usedPromos: get().usedPromos }),
       setWhen: (when) => set({ when }),
-      confirmBooking: (routeDistanceKm, roadDurationMinutes, routePath) => {
+      confirmBooking: (routeDistanceKm, roadDurationMinutes, routePath, backendBooking) => {
         const s = get();
         if (!s.drop) return;
         const place = getPlace(s.pickup.placeId);
@@ -417,7 +417,9 @@ export const useRaah = create<RaahState>()(
         if (fare.availability === "unavailable") return;
         const scheduled = s.when !== "now";
         const ride: Ride = {
-          id: uid("ride"),
+          id: backendBooking?.id ?? uid("ride"),
+          backendBookingId: backendBooking?.id,
+          backendStatus: backendBooking?.status,
           status: scheduled ? "scheduled" : "searching",
           pickup: s.pickup,
           drop: s.drop,
@@ -437,23 +439,25 @@ export const useRaah = create<RaahState>()(
         };
         set({
           rides: [ride, ...s.rides],
-          activeRideId: ride.id,
+          activeRideId: backendBooking ? null : ride.id,
           selectedRideId: ride.id,
           usedPromos: s.promo?.ok && s.promo.code ? [...s.usedPromos, s.promo.code] : s.usedPromos,
           promo: null,
           promoInput: "",
           when: "now",
           stops: [],
-          screen: scheduled ? "history" : "assigning",
+          screen: backendBooking || scheduled ? "history" : "assigning",
           stack: [],
-          toast: t(s.lang, "booked"),
+          toast: backendBooking
+            ? "Your booking request is saved to your Kida account. Captain matching is not active yet."
+            : t(s.lang, "booked"),
         });
         if (s.voiceOn) speak(s.lang, t(s.lang, "booked"));
       },
       assignDriver: () => {
         const s = get();
         const ride = s.rides.find((r) => r.id === s.activeRideId);
-        if (!ride || ride.driver) return;
+        if (!ride || ride.driver || ride.backendBookingId) return;
         const place = getPlace(ride.pickup.placeId);
         const driver = makeDriver(ride.vehicle, place?.state ?? "Karnataka", ride.id.length * 17);
         set({
@@ -696,7 +700,7 @@ export const useRaah = create<RaahState>()(
       partialize: (s) => {
         // Google Places content is intentionally kept in memory only. Persisting
         // it locally would cache Google place names, addresses and coordinates.
-        const persistedRides = s.rides.filter((ride) => !containsGoogleContent(ride.pickup) && !containsGoogleContent(ride.drop) && !(ride.stops ?? []).some(containsGoogleContent)).map((ride) => {
+        const persistedRides = s.rides.filter((ride) => !ride.backendBookingId && !containsGoogleContent(ride.pickup) && !containsGoogleContent(ride.drop) && !(ride.stops ?? []).some(containsGoogleContent)).map((ride) => {
           const persistedRide = { ...ride };
           delete persistedRide.routePath;
           return persistedRide;
@@ -741,7 +745,7 @@ export const useRaah = create<RaahState>()(
           pickup: containsGoogleContent(s.desk.pickup) ? null : s.desk.pickup,
           drop: containsGoogleContent(s.desk.drop) ? null : s.desk.drop,
         },
-        tickets: s.tickets,
+        tickets: s.tickets.filter((ticket) => !ticket.backend),
       });
       },
     },
