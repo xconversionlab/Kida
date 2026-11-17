@@ -13,7 +13,7 @@ create table if not exists public.kida_profiles (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint kida_profiles_phone_format check (
-    phone_e164 is null or phone_e164 ~ '^\\+[1-9][0-9]{7,14}$'
+    phone_e164 is null or phone_e164 ~ '^\+[1-9][0-9]{7,14}$'
   )
 );
 
