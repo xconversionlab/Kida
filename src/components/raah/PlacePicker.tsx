@@ -4,24 +4,14 @@ import { searchPlaces, toSelection } from "@/lib/raah/places";
 import type { PlaceKind, Selection } from "@/lib/raah/types";
 import { useRaah } from "@/lib/raah/store";
 import {
-  createGoogleSessionToken,
-  getGooglePlaceOption,
-  getGooglePredictions,
-  getNearbyGooglePlaces,
-  googleOptionToSelection,
-  hasGoogleMapsKey,
-  loadGoogleMaps,
-  reverseGeocodeGoogle,
-  type GooglePlaceOption,
-} from "@/lib/raah/googleMaps";
+  getNearbyOsmPlaces,
+  osmOptionToSelection,
+  reverseGeocodeOsm,
+  searchOsmPlaces,
+  type OsmPlaceOption,
+} from "@/lib/raah/osmMaps";
 import { MapView } from "./MapView";
 import { Header, inputClass, Pill, useCopy } from "./ui";
-
-interface Prediction {
-  id: string;
-  description: string;
-  place: Parameters<typeof getGooglePlaceOption>[0];
-}
 
 function distanceKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
   const radians = (value: number) => (value * Math.PI) / 180;
@@ -58,13 +48,12 @@ export function PlacePicker() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "village" | "town" | "city">("all");
   const [openId, setOpenId] = useState(pickup.placeId);
-  const [predictions, setPredictions] = useState<Prediction[]>([]);
-  const [nearby, setNearby] = useState<GooglePlaceOption[]>([]);
+  const [predictions, setPredictions] = useState<OsmPlaceOption[]>([]);
+  const [nearby, setNearby] = useState<OsmPlaceOption[]>([]);
   const [nearbyLoading, setNearbyLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
-  const [googleError, setGoogleError] = useState("");
-  const sessionTokenRef = useRef<object | null>(null);
+  const [mapError, setMapError] = useState("");
   const requestNumberRef = useRef(0);
   const autoLocationRequestedRef = useRef(false);
 
@@ -81,36 +70,30 @@ export function PlacePicker() {
   const saved = [home, work, ...extras].filter((item) => item != null);
   const focused = results.find((place) => place.id === openId) ?? results[0];
 
-  async function useGps() {
-    if (!hasGoogleMapsKey) {
-      setGoogleError("Google location services need to be connected before Kida can fetch a precise address.");
-      return;
-    }
+  async function selectCurrentGps(position: GeolocationPosition) {
+    const point = { lat: position.coords.latitude, lng: position.coords.longitude };
+    const address = await reverseGeocodeOsm(point, lang);
+    choose(osmOptionToSelection(address));
+    setToast("Pickup address found using OpenStreetMap.");
+  }
+
+  function useGps() {
     if (!navigator.geolocation) {
-      setGoogleError("This device does not provide location services.");
+      setMapError("This device does not provide location services. You can search for an address instead.");
       return;
     }
 
     setLocationLoading(true);
-    setGoogleError("");
+    setMapError("");
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const address = await reverseGeocodeGoogle(
-            { lat: position.coords.latitude, lng: position.coords.longitude },
-            lang,
-          );
-          choose(googleOptionToSelection(address));
-          setToast("Pickup address found using Google Maps.");
-        } catch (error) {
-          setGoogleError(error instanceof Error ? error.message : "Google could not find this address.");
-        } finally {
-          setLocationLoading(false);
-        }
+      (position) => {
+        void selectCurrentGps(position)
+          .catch((error: unknown) => setMapError(error instanceof Error ? error.message : "OpenStreetMap could not identify this location."))
+          .finally(() => setLocationLoading(false));
       },
       (error) => {
         setLocationLoading(false);
-        setGoogleError(error.code === error.PERMISSION_DENIED
+        setMapError(error.code === error.PERMISSION_DENIED
           ? "Location permission is off. Allow location access and try again."
           : "Could not read your current location. Check GPS and try again.");
       },
@@ -118,39 +101,41 @@ export function PlacePicker() {
     );
   }
 
-  // When the customer opens Pickup, ask for device location and resolve it to a
-  // real Google address. The customer can still search or choose manually.
+  // When the Pickup screen opens, try to resolve the device GPS position.
+  // The customer can still decline permission and search or choose a saved place.
   useEffect(() => {
     if (target !== "pickup") {
       autoLocationRequestedRef.current = false;
       return;
     }
-    if (!hasGoogleMapsKey || autoLocationRequestedRef.current || !navigator.geolocation) return;
+    if (autoLocationRequestedRef.current || !navigator.geolocation) return;
     autoLocationRequestedRef.current = true;
 
     let active = true;
     setLocationLoading(true);
     navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const address = await reverseGeocodeGoogle(
-            { lat: position.coords.latitude, lng: position.coords.longitude },
-            lang,
-          );
-          if (!active) return;
-          choose(googleOptionToSelection(address));
-          setToast("Pickup address found using Google Maps.");
-        } catch (error) {
-          if (active) setGoogleError(error instanceof Error ? error.message : "Google could not find this address.");
-        } finally {
-          if (active) setLocationLoading(false);
-        }
+      (position) => {
+        void reverseGeocodeOsm(
+          { lat: position.coords.latitude, lng: position.coords.longitude },
+          lang,
+        )
+          .then((address) => {
+            if (!active) return;
+            choose(osmOptionToSelection(address));
+            setToast("Pickup address found using OpenStreetMap.");
+          })
+          .catch((error: unknown) => {
+            if (active) setMapError(error instanceof Error ? error.message : "OpenStreetMap could not identify this location.");
+          })
+          .finally(() => {
+            if (active) setLocationLoading(false);
+          });
       },
       (error) => {
         if (!active) return;
         setLocationLoading(false);
-        setGoogleError(error.code === error.PERMISSION_DENIED
-          ? "Allow location access to fill your pickup address automatically, or search for it below."
+        setMapError(error.code === error.PERMISSION_DENIED
+          ? "Allow location access to fill your pickup address automatically, or search below."
           : "Location could not be read. Use Search to enter your pickup.");
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
@@ -159,21 +144,21 @@ export function PlacePicker() {
     return () => { active = false; };
   }, [target, lang, choose, setToast]);
 
-  // Fetch Google nearby landmarks around the pickup as soon as Drop opens.
+  // Fetch real nearby OSM features around the pickup when the Drop selector opens.
   useEffect(() => {
-    if (target !== "drop" || !hasGoogleMapsKey) {
+    if (target !== "drop") {
       setNearby([]);
       return;
     }
     let active = true;
     setNearbyLoading(true);
-    setGoogleError("");
-    getNearbyGooglePlaces(coordinateOf(pickup), 15)
+    setMapError("");
+    getNearbyOsmPlaces(coordinateOf(pickup), 15)
       .then((places) => {
         if (active) setNearby(places);
       })
       .catch((error: unknown) => {
-        if (active) setGoogleError(error instanceof Error ? error.message : "Nearby places could not be loaded.");
+        if (active) setMapError(error instanceof Error ? error.message : "Nearby OpenStreetMap places could not be loaded.");
       })
       .finally(() => {
         if (active) setNearbyLoading(false);
@@ -181,62 +166,52 @@ export function PlacePicker() {
     return () => { active = false; };
   }, [target, pickup.lat, pickup.lng]);
 
-  // Search suggestions are biased to the pickup for Drop, and restricted to India.
+  // Photon suggestions are debounced and biased toward the pickup for drop searches.
   useEffect(() => {
     const currentRequest = ++requestNumberRef.current;
-    if (!hasGoogleMapsKey || query.trim().length < 3) {
+    if (query.trim().length < 3) {
       setPredictions([]);
       setSearchLoading(false);
-      if (query.trim().length < 3) sessionTokenRef.current = null;
       return;
     }
 
     let active = true;
-    const timer = window.setTimeout(async () => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
       setSearchLoading(true);
-      try {
-        if (!sessionTokenRef.current) {
-          const bundle = await loadGoogleMaps();
-          sessionTokenRef.current = createGoogleSessionToken(bundle);
-        }
-        const matches = await getGooglePredictions(
-          query.trim(),
-          target === "drop" ? coordinateOf(pickup) : null,
-          sessionTokenRef.current,
-          lang,
-        );
-        if (active && currentRequest === requestNumberRef.current) setPredictions(matches);
-      } catch (error) {
-        if (active && currentRequest === requestNumberRef.current) {
-          setGoogleError(error instanceof Error ? error.message : "Google search is unavailable.");
-        }
-      } finally {
-        if (active && currentRequest === requestNumberRef.current) setSearchLoading(false);
-      }
-    }, 320);
+      void searchOsmPlaces(
+        query.trim(),
+        target === "drop" ? coordinateOf(pickup) : null,
+        lang,
+        controller.signal,
+      )
+        .then((matches) => {
+          if (active && currentRequest === requestNumberRef.current) setPredictions(matches);
+        })
+        .catch((error: unknown) => {
+          if (active && currentRequest === requestNumberRef.current && !(error instanceof DOMException && error.name === "AbortError")) {
+            setMapError(error instanceof Error ? error.message : "OpenStreetMap search is unavailable.");
+          }
+        })
+        .finally(() => {
+          if (active && currentRequest === requestNumberRef.current) setSearchLoading(false);
+        });
+    }, 350);
 
     return () => {
       active = false;
+      controller.abort();
       window.clearTimeout(timer);
     };
   }, [query, target, pickup.lat, pickup.lng, lang]);
 
-  async function chooseGooglePrediction(prediction: Prediction) {
-    setSearchLoading(true);
-    setGoogleError("");
-    try {
-      const option = await getGooglePlaceOption(prediction.place);
-      choose(googleOptionToSelection(option));
-      sessionTokenRef.current = null;
-    } catch (error) {
-      setGoogleError(error instanceof Error ? error.message : "This place could not be selected.");
-    } finally {
-      setSearchLoading(false);
-    }
+  function chooseOsmPrediction(option: OsmPlaceOption) {
+    setMapError("");
+    choose(osmOptionToSelection(option));
   }
 
-  function chooseNearbyPlace(option: GooglePlaceOption) {
-    choose(googleOptionToSelection(option));
+  function chooseNearbyPlace(option: OsmPlaceOption) {
+    choose(osmOptionToSelection(option));
   }
 
   return (
@@ -254,21 +229,24 @@ export function PlacePicker() {
           />
         </div>
 
-        {hasGoogleMapsKey && (predictions.length > 0 || searchLoading) ? (
+        {(predictions.length > 0 || searchLoading) ? (
           <section className="overflow-hidden rounded-2xl border border-line bg-white">
             {predictions.map((prediction) => (
               <button
                 key={prediction.id}
                 type="button"
-                onClick={() => void chooseGooglePrediction(prediction)}
+                onClick={() => chooseOsmPrediction(prediction)}
                 className="flex min-h-14 w-full items-center gap-3 border-b border-line px-3 py-3 text-left last:border-b-0"
               >
                 <MapPin className="size-5 shrink-0 text-primary" />
-                <span className="min-w-0 flex-1 text-sm">{prediction.description}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold">{prediction.name}</span>
+                  <span className="block truncate text-xs text-muted">{prediction.address}</span>
+                </span>
               </button>
             ))}
-            {searchLoading ? <p className="px-3 py-2 text-xs text-muted">Searching Google Maps…</p> : null}
-            <p className="px-3 py-2 text-right text-[11px] font-medium text-muted">Powered by Google Maps</p>
+            {searchLoading ? <p className="px-3 py-2 text-xs text-muted">Searching OpenStreetMap…</p> : null}
+            <p className="px-3 py-2 text-right text-[11px] font-medium text-muted">Places data © OpenStreetMap contributors · Photon</p>
           </section>
         ) : null}
 
@@ -293,23 +271,17 @@ export function PlacePicker() {
         </div>
 
         {target === "pickup" ? (
-          <button type="button" onClick={() => void useGps()} disabled={locationLoading} className="flex min-h-14 w-full items-center gap-3 rounded-2xl bg-primary-soft px-3 text-left text-primary disabled:opacity-60">
+          <button type="button" onClick={useGps} disabled={locationLoading} className="flex min-h-14 w-full items-center gap-3 rounded-2xl bg-primary-soft px-3 text-left text-primary disabled:opacity-60">
             <LocateFixed className="size-5 shrink-0" />
             <span>
               <span className="block font-semibold">{locationLoading ? "Finding your address…" : "Use my current location"}</span>
-              <span className="block text-xs">{hasGoogleMapsKey ? "Google will turn your GPS position into a full address" : "Google address lookup will activate after setup"}</span>
+              <span className="block text-xs">Your device GPS position will be resolved with OpenStreetMap</span>
             </span>
           </button>
         ) : null}
 
-        {googleError ? (
-          <div className="rounded-xl border border-line bg-paper px-3 py-2 text-sm text-muted">{googleError}</div>
-        ) : null}
-
-        {!hasGoogleMapsKey ? (
-          <div className="rounded-xl border border-dashed border-line bg-paper px-3 py-3 text-xs leading-relaxed text-muted">
-            Google-powered address lookup and nearby destinations are ready to enable. Add the restricted <strong>VITE_GOOGLE_MAPS_API_KEY</strong> in the Kida Vercel project and enable Maps JavaScript API, Places API (New), and Geocoding API.
-          </div>
+        {mapError ? (
+          <div className="rounded-xl border border-line bg-paper px-3 py-2 text-sm text-muted">{mapError}</div>
         ) : null}
 
         {saved.length > 0 && !query ? (
@@ -353,16 +325,16 @@ export function PlacePicker() {
           </section>
         ) : null}
 
-        {target === "drop" && hasGoogleMapsKey ? <MapView pickup={pickup} className="h-44" /> : null}
+        {target === "drop" ? <MapView pickup={pickup} className="h-44" /> : null}
 
-        {target === "drop" && hasGoogleMapsKey ? (
+        {target === "drop" ? (
           <section>
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-muted">Main places near your pickup</h2>
+              <h2 className="text-sm font-semibold text-muted">Nearby places from OpenStreetMap</h2>
               <span className="text-[11px] text-muted">Within 7 km</span>
             </div>
             {nearbyLoading ? <p className="py-3 text-sm text-muted">Finding nearby landmarks…</p> : null}
-            {!nearbyLoading && nearby.length === 0 ? <p className="py-3 text-sm text-muted">No nearby places found. Search for a destination above.</p> : null}
+            {!nearbyLoading && nearby.length === 0 ? <p className="py-3 text-sm text-muted">No nearby mapped places found. Search for a destination above.</p> : null}
             <div className="space-y-2">
               {nearby.map((item) => (
                 <button
@@ -380,22 +352,19 @@ export function PlacePicker() {
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-right text-[11px] font-medium text-muted">Places data by Google Maps</p>
+            <p className="mt-2 text-right text-[11px] font-medium text-muted">© OpenStreetMap contributors</p>
           </section>
         ) : null}
 
-        {focused && (!hasGoogleMapsKey || target !== "drop") ? (
+        {focused && target !== "drop" ? (
           <section>
-            <MapView
-              pickup={toSelection(focused, focused.landmarks[0], "map")}
-              className="h-52"
-            />
+            <MapView pickup={toSelection(focused, focused.landmarks[0], "map")} className="h-52" />
             <div className="mt-3 grid grid-cols-2 gap-2">
               {focused.landmarks.map((landmark) => (
                 <button
                   key={landmark.id}
                   type="button"
-                  onClick={() => choose(toSelection(focused, landmark, "map"))}
+                  onClick={() => choose(toSelection(focused, landmark, "search"))}
                   className="min-h-12 rounded-2xl border border-line px-3 py-2 text-left text-sm"
                 >
                   <span className="block font-semibold">{landmark.name}</span>
@@ -440,7 +409,7 @@ export function PlacePicker() {
               ) : null}
             </div>
           ))}
-          {results.length === 0 ? <p className="text-sm text-muted">No sample place matches that search.</p> : null}
+          {results.length === 0 ? <p className="text-sm text-muted">No local sample city or village matches that search. Use the OpenStreetMap search results above.</p> : null}
         </section>
       </div>
     </div>
