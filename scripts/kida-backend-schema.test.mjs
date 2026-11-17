@@ -6,11 +6,15 @@ import { PGlite } from "@electric-sql/pglite";
 test("Kida V1 migrations create scoped customer records and booking audit rows", async () => {
   const authSql = await readFile(new URL("../migrations/0001_auth.sql", import.meta.url), "utf8");
   const kidaSql = await readFile(new URL("../migrations/0002_kida_core.sql", import.meta.url), "utf8");
+  const preferencesSql = await readFile(new URL("../migrations/0003_customer_booking_preferences.sql", import.meta.url), "utf8");
+  const commercialSql = await readFile(new URL("../migrations/0004_client_commercial_rules.sql", import.meta.url), "utf8");
   const db = new PGlite();
 
   try {
     await db.exec(authSql);
     await db.exec(kidaSql);
+    await db.exec(preferencesSql);
+    await db.exec(commercialSql);
 
     await db.query(
       `insert into public."user" ("id", "name", "email", "emailVerified")
@@ -43,6 +47,59 @@ test("Kida V1 migrations create scoped customer records and booking audit rows",
       ["customer-1", "00000000-0000-4000-8000-000000000001"],
     );
     const bookingId = booking.rows[0].id;
+
+    const bookingCommercialDefaults = await db.query(
+      "select is_free_ride, customer_reward_cycle, payment_method from public.kida_bookings where id = $1",
+      [bookingId],
+    );
+    assert.deepEqual(bookingCommercialDefaults.rows[0], {
+      is_free_ride: false,
+      customer_reward_cycle: null,
+      payment_method: "cash",
+    });
+
+    const settings = await db.query(
+      `select platform_commission_percent, captain_share_percent,
+              customer_paid_rides_for_free, customer_free_ride_max_km,
+              driver_daily_bonus_completed_rides, driver_daily_bonus_amount_paise,
+              driver_required_opening_balance_paise, business_timezone
+         from public.kida_platform_settings where id = 1`,
+    );
+    assert.deepEqual(settings.rows[0], {
+      platform_commission_percent: 20,
+      captain_share_percent: 80,
+      customer_paid_rides_for_free: 5,
+      customer_free_ride_max_km: "7.00",
+      driver_daily_bonus_completed_rides: 15,
+      driver_daily_bonus_amount_paise: 20000,
+      driver_required_opening_balance_paise: null,
+      business_timezone: "Asia/Kolkata",
+    });
+
+    assert.deepEqual(
+      (await db.query("select public.kida_captain_can_accept_rides($1) as allowed", ["captain-1"])).rows,
+      [{ allowed: false }],
+      "Captain acceptance must fail closed until a required opening ledger amount is configured",
+    );
+
+    await db.query(
+      `insert into public."user" ("id", "name", "email", "emailVerified")
+       values ($1, $2, $3, false)`,
+      ["captain-1", "Kida Captain", "captain@example.test"],
+    );
+    await db.query(
+      "insert into public.kida_user_roles (user_id, role) values ($1, 'captain')",
+      ["captain-1"],
+    );
+    await db.query(
+      "insert into public.kida_captain_wallets (captain_user_id, opening_balance_paise, balance_paise) values ($1, 250000, 250000)",
+      ["captain-1"],
+    );
+    await db.query("update public.kida_platform_settings set driver_required_opening_balance_paise = 200000 where id = 1");
+    assert.deepEqual(
+      (await db.query("select public.kida_captain_can_accept_rides($1) as allowed", ["captain-1"])).rows,
+      [{ allowed: true }],
+    );
 
     await db.query(
       `insert into public.kida_booking_events
