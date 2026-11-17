@@ -8,6 +8,7 @@ The backend uses the repository's existing server-only PostgreSQL layer:
 - Neon Postgres when the deployment provides `DATABASE_URL`.
 - PGlite for local/live-preview development without `DATABASE_URL`.
 - Ordered SQL migrations in `migrations/*.sql`.
+- Migration `0004_client_commercial_rules.sql` adds the client-approved fare/reward settings, booking reward markers, Captain wallet/ledger tables, trip financial allocations, daily bonus award records and a fail-closed Captain ledger-balance gate.
 
 ## Included
 
@@ -39,6 +40,9 @@ The backend uses the repository's existing server-only PostgreSQL layer:
 - Creation and initial audit event are written together in one SQL statement.
 - Repeating the same client request ID returns the existing booking rather than making a duplicate.
 - Backend requests appear as requests saved to the account; they do not trigger the local simulated Captain-matching sequence.
+- Client-approved preview rates: E-Bike ₹15/km, Auto ₹20/km, Mini cab ₹25/km and 7-seater cab ₹30/km. Sedan is hidden from new bookings until its rate is approved.
+- The customer reward requires five completed paid account rides, then one free cab ride strictly below 7 km. A ride of 7 km or more is paid. Kida funds the Captain payout for a redeemed free ride.
+- Normal completed-trip allocation is 80% Captain / 20% Kida, as a split of the fare and not an additional customer charge.
 
 Booking lifecycle:
 
@@ -71,17 +75,20 @@ This is a backend foundation, not a production ride-hailing launch.
 1. The app's local OTP screen still accepts the demonstration code `482913`. It does not create a Better Auth account and must not be treated as phone authentication. The connected backend booking path requires a real Google/X Better Auth session. A production phone/SMS OTP provider still needs to be selected and integrated.
 2. No Captain app, KYC approval, online availability, matching/dispatch, driver location stream, trip PIN verification or staffed operator console is connected. Backend booking requests currently stop at `requested`; they do not notify or match a Captain.
 3. Fare rates in the Customer app are sample values. The stored fare is a client preview, not a server-approved city/vehicle rate card or final fare calculation.
-4. The selected payment method is stored as a preference only. No payment gateway, wallet, payout, refund or financial ledger is active.
+4. The selected payment method is stored as a preference only. No payment gateway or live settlement is active. Migration 0004 adds the Captain ledger and financial-allocation schema, but actual commission deductions, direct-cash reconciliation, company-funded free-ride payouts, wallet top-ups and daily bonus credits are not yet connected to a Partner/dispatch application.
 5. Support and SOS incident submissions are stored for the signed-in account but have no staffed responder or emergency-service integration. The customer must still call 112 directly when emergency help is needed.
 6. The Android app is still a web-backed preview shell; the backend endpoints are deployed with the server application only after the feature is merged and its production database/auth environment is provisioned.
 7. City/vehicle operating eligibility, permits, insurance, state-by-state rules and launch approvals still need formal configuration and review. Do not enable a vehicle category for public trips until its legal and operational approvals are confirmed.
 8. The deployment must have its server database and Better Auth provider configuration provisioned. Do not expose `DATABASE_URL`, Better Auth secrets or any server secret in browser environment variables.
+9. The client's compulsory opening ledger amount has not been supplied. The platform setting is deliberately NULL; Captain ride acceptance must remain blocked until an administrator configures the exact approved amount.
+10. The client-approved ₹200 daily bonus after 15 completed rides for Auto and cab Captains is represented in the schema only. E-Bike Captains are excluded. A server-side daily award transaction and Captain app are still required before credits can be issued.
 
 ## Key source files
 
 - `migrations/0001_auth.sql` — generated Better Auth schema, copied unchanged from the repository's auth migration.
 - `migrations/0002_kida_core.sql` — Kida profiles, roles, bookings, events, support and safety tables.
 - `migrations/0003_customer_booking_preferences.sql` — payment preference and woman-Captain request flags.
+- `migrations/0004_client_commercial_rules.sql` — client commercial settings, customer reward booking markers, Captain wallet/ledger, financial allocation and daily bonus award schema. The opening ledger threshold remains unset until the client supplies it.
 - `src/lib/kida/customer-sync.ts` — session-scoped loading and mapping of account-owned bookings and tickets into Customer UI state.
 - `src/components/raah/book.tsx` — authenticated booking request creation.
 - `src/components/raah/more.tsx` — profile save, support ticket and SOS incident submission.
