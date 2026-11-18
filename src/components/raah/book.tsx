@@ -428,16 +428,25 @@ function Stop({ label, title, line }: { label: string; title: string; line: stri
 export function AssigningScreen() {
   const copy = useCopy();
   const assign = useRaah((s) => s.assignDriver);
+  const activeRideId = useRaah((s) => s.activeRideId);
+  const ride = useRaah((s) => s.rides.find((item) => item.id === activeRideId));
+  const isBackendRide = Boolean(ride?.backendBookingId);
   useEffect(() => {
+    if (isBackendRide) return;
     const id = window.setTimeout(() => assign(), 1400);
     return () => window.clearTimeout(id);
-  }, [assign]);
+  }, [assign, isBackendRide]);
   return (
     <div className="grid min-h-[60vh] place-items-center px-6 text-center">
       <div>
         <div className="mx-auto size-16 rounded-full bg-primary-soft puck" />
-        <h1 className="mt-6 font-display text-3xl">{copy("searching")}</h1>
-        <p className="mt-2 text-sm text-muted">{copy("simDriver")}</p>
+        <h1 className="mt-6 font-display text-3xl">{isBackendRide ? "Finding your Captain" : copy("searching")}</h1>
+        <p className="mt-2 text-sm text-muted">
+          {isBackendRide
+            ? "Your request is visible to eligible online Captains. This screen updates when a Captain accepts."
+            : copy("simDriver")}
+        </p>
+        {isBackendRide ? <p className="mt-4 text-xs text-muted">Keep Kida open. Please do not travel to the pickup until your Captain is confirmed.</p> : null}
       </div>
     </div>
   );
