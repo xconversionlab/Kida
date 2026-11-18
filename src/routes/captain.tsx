@@ -495,7 +495,7 @@ function CaptainApp() {
             <div className="rounded-xl bg-neutral-50 p-3"><p className="text-xs font-bold text-neutral-500">PICKUP</p><p className="font-semibold">{typeof active.pickup.label === "string" ? active.pickup.label : "Pickup location"}</p><p className="text-neutral-500">{typeof active.pickup.line === "string" ? active.pickup.line : ""}</p></div>
             <div className="rounded-xl bg-neutral-50 p-3"><p className="text-xs font-bold text-neutral-500">DESTINATION</p><p className="font-semibold">{typeof active.dropoff.label === "string" ? active.dropoff.label : "Destination"}</p><p className="text-neutral-500">{typeof active.dropoff.line === "string" ? active.dropoff.line : ""}</p></div>
           </div>
-          {activePickup && activeDrop ? <div className="mt-3"><MapView pickup={activePickup} drop={activeDrop} stops={(active.stops ?? []).map((stop) => readSelection(stop)).filter((stop): stop is Selection => Boolean(stop))} className="h-52" caption="Customer pickup and destination" /></div> : null}
+          {activePickup && activeDrop ? <div className="mt-3"><MapView pickup={activePickup} drop={activeDrop} stops={(active.stops ?? []).map((stop) => readSelection(stop)).filter((stop): stop is Selection => Boolean(stop))} captainLocation={captainPosition} className="h-52" caption="Your GPS position, pickup and destination" /></div> : null}
           {active.status === "arrived" ? (
             <div className="mt-4">
               <Field label="Enter the customer's 4-digit trip PIN" value={tripPin} onChange={(value) => setTripPin(value.replace(/\D/g, "").slice(0, 4))} placeholder="0000" />
