@@ -147,20 +147,31 @@ export async function syncMyKidaData(shouldApply: () => boolean = () => true) {
 
   if (shouldApply()) {
     useRaah.setState((state) => {
-      const currentRideId = state.activeRideId;
-      const activeRide = currentRideId ? rides.find((ride) => ride.id === currentRideId) : undefined;
-      const nextActiveRideId = activeRide && !["completed", "cancelled"].includes(activeRide.status)
-        ? activeRide.id
-        : null;
+      const currentRide = state.activeRideId
+        ? rides.find((ride) => ride.id === state.activeRideId)
+        : undefined;
+      const dispatchStatuses = new Set(["requested", "searching", "accepted", "captain_arriving", "arrived", "in_progress"]);
+      const isLiveRide = (ride: Ride | undefined) => Boolean(
+        ride?.backendBookingId
+        && ride.status !== "scheduled"
+        && dispatchStatuses.has(ride.backendStatus ?? ""),
+      );
+      // The browser intentionally does not persist backend-owned rides. Restore
+      // the active booking pointer from the account API after sign-in / refresh.
+      const recoveredRide = isLiveRide(currentRide)
+        ? currentRide
+        : rides.find((ride) => isLiveRide(ride));
+      const rideForScreen = currentRide ?? recoveredRide;
+      const nextActiveRideId = recoveredRide?.id ?? null;
       const nextSelectedRideId = state.selectedRideId && rides.some((ride) => ride.id === state.selectedRideId)
         ? state.selectedRideId
         : rides[0]?.id ?? null;
       let screen = state.screen;
-      if (state.screen === "assigning" && activeRide?.backendStatus && !["requested", "searching"].includes(activeRide.backendStatus)) {
-        screen = activeRide.backendStatus === "completed" ? "complete" : ["cancelled", "expired", "no_captain"].includes(activeRide.backendStatus) ? "history" : "tracking";
-      } else if (state.screen === "tracking" && activeRide?.backendStatus === "completed") {
+      if (state.screen === "assigning" && rideForScreen?.backendStatus && !["requested", "searching"].includes(rideForScreen.backendStatus)) {
+        screen = rideForScreen.backendStatus === "completed" ? "complete" : ["cancelled", "expired", "no_captain"].includes(rideForScreen.backendStatus) ? "history" : "tracking";
+      } else if (state.screen === "tracking" && rideForScreen?.backendStatus === "completed") {
         screen = "complete";
-      } else if (state.screen === "tracking" && activeRide?.backendStatus && ["cancelled", "expired", "no_captain"].includes(activeRide.backendStatus)) {
+      } else if (state.screen === "tracking" && rideForScreen?.backendStatus && ["cancelled", "expired", "no_captain"].includes(rideForScreen.backendStatus)) {
         screen = "history";
       }
       return {
