@@ -137,6 +137,7 @@ function CaptainApp() {
   const [submitting, setSubmitting] = useState(false);
   const [tripPin, setTripPin] = useState("");
   const [tripBusy, setTripBusy] = useState(false);
+  const [captainPosition, setCaptainPosition] = useState<{ lat: number; lng: number } | null>(null);
   const watchId = useRef<number | null>(null);
   const lastLocationSent = useRef(0);
 
@@ -186,6 +187,8 @@ function CaptainApp() {
     if (!isOnline || !navigator.geolocation) return;
     let active = true;
     const send = (position: GeolocationPosition) => {
+      const current = { lat: position.coords.latitude, lng: position.coords.longitude };
+      setCaptainPosition(current);
       const now = Date.now();
       if (now - lastLocationSent.current < 4000) return;
       lastLocationSent.current = now;
@@ -260,11 +263,12 @@ function CaptainApp() {
         return;
       }
       if (!navigator.geolocation) throw new Error("This device does not support GPS location.");
-      await new Promise<GeolocationPosition>((resolve, reject) => {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true, maximumAge: 0, timeout: 20000,
         });
       });
+      setCaptainPosition({ lat: position.coords.latitude, lng: position.coords.longitude });
       await setCaptainAvailability({ data: { isOnline: true } });
       await refresh(true);
       setNotice("You are online. Keep Kida open and allow location access while accepting trips.");
@@ -491,6 +495,7 @@ function CaptainApp() {
         <Card>
           <TopLabel>Active customer booking</TopLabel>
           <h2 className="mt-1 text-xl font-black">{active.status.replaceAll("_", " ")}</h2>
+          <p className="mt-2 text-sm text-neutral-600">Customer: {active.customer_name?.trim() || "Kida customer"}</p>
           <div className="mt-3 grid gap-2 text-sm">
             <div className="rounded-xl bg-neutral-50 p-3"><p className="text-xs font-bold text-neutral-500">PICKUP</p><p className="font-semibold">{typeof active.pickup.label === "string" ? active.pickup.label : "Pickup location"}</p><p className="text-neutral-500">{typeof active.pickup.line === "string" ? active.pickup.line : ""}</p></div>
             <div className="rounded-xl bg-neutral-50 p-3"><p className="text-xs font-bold text-neutral-500">DESTINATION</p><p className="font-semibold">{typeof active.dropoff.label === "string" ? active.dropoff.label : "Destination"}</p><p className="text-neutral-500">{typeof active.dropoff.line === "string" ? active.dropoff.line : ""}</p></div>
