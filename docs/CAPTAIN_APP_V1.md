@@ -124,7 +124,7 @@ Do not guess or populate the amount. Once the client approves the exact INR amou
 Not connected in V1:
 - SMS / mobile OTP authentication.
 - Document uploads, KYC provider or automated verification.
-- Admin approval dashboard.
+- Admin-only Captain application review and Operations live-trip visibility through the shared Kida backend.
 - Push notifications or realtime socket delivery (the apps poll the shared API).
 - Masked calls, in-app chat delivery or customer phone-number disclosure.
 - Payment gateway, cash reconciliation, Captain payouts, platform commission deduction or wallet top-up.
