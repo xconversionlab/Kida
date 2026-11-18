@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
 import { ensureDbReady, getPglite } from "../db";
 import { pgliteDialect } from "./pglite-dialect";
+import { emailAndPasswordEnabled } from "./email-password";
 
 void ensureDbReady();
 
@@ -73,7 +74,7 @@ export const auth = betterAuth({
   database,
   trustedOrigins,
   emailAndPassword: {
-    enabled: true,
+    enabled: emailAndPasswordEnabled,
     requireEmailVerification: false,
   },
   session: {

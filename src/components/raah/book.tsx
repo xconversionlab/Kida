@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createMyBooking } from "@/lib/kida/server";
-import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
+import { EmailPasswordForm } from "@/components/auth/EmailPasswordForm";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getPlace } from "@/lib/raah/places";
 import { getOsmDrivingRoute, type DrivingRoutePreview } from "@/lib/raah/osmMaps";
@@ -383,22 +383,13 @@ export function ConfirmScreen() {
         </button>
         {authPending ? (
           <p className="rounded-2xl bg-paper px-3 py-3 text-sm text-muted">Checking your Kida account…</p>
-        ) : authEnabled && !user ? (
+        ) : !user ? (
           <div className="space-y-3 rounded-2xl border border-primary/30 bg-primary-soft p-3">
             <div>
               <p className="font-semibold">Sign in to save this booking</p>
               <p className="mt-1 text-sm text-muted">Your ride request will be stored under your Kida account. Use a verified account session to continue.</p>
             </div>
-            {GROK_PROVIDERS.map((provider) => (
-              <button
-                key={provider.providerId}
-                type="button"
-                onClick={() => void signIn(provider.providerId, { callbackURL: "/" })}
-                className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-sm font-semibold"
-              >
-                Continue with {provider.label}
-              </button>
-            ))}
+            <EmailPasswordForm callbackURL="/" />
           </div>
         ) : (
           <Btn className="w-full" disabled={saving || trip.routeState === "loading" || rewardRouteNeedsVerification} onClick={() => void saveBooking()}>
