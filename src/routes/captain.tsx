@@ -11,7 +11,7 @@ import {
   updateCaptainLocation,
 } from "@/lib/kida/captain-server";
 import { MapView } from "@/components/raah/MapView";
-import type { Selection, VehicleId } from "@/lib/raah/types";
+import type { Selection } from "@/lib/raah/types";
 
 export const Route = createFileRoute("/captain")({ component: CaptainApp });
 
@@ -104,11 +104,12 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
 }
 
 function Button({ children, onClick, disabled = false, variant = "dark", type = "button", className = "" }: {
-  children: React.ReactNode;
+  children: ReactNode;
   onClick?: () => void;
   disabled?: boolean;
   variant?: "dark" | "yellow" | "light" | "danger";
   type?: "button" | "submit";
+  className?: string;
 }) {
   const styles = {
     dark: "bg-neutral-950 text-white hover:bg-neutral-800",
@@ -155,6 +156,7 @@ function CaptainApp() {
 
   useEffect(() => {
     if (!user || user.isDevFallback) return;
+    setPortal(null);
     let active = true;
     let timer: number | undefined;
     const load = async () => {
@@ -176,7 +178,7 @@ function CaptainApp() {
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [user?.id, user?.isDevFallback]);
+  }, [user]);
 
   const isOnline = Boolean(portal?.profile?.is_online);
   useEffect(() => {
