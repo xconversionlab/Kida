@@ -48,15 +48,15 @@ export function TrackingScreen() {
       <div className="space-y-3 px-4 pt-3">
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-sm text-muted">{ride.status === "ongoing" ? copy("onTrip") : copy("arriving")}</p>
+            <p className="text-sm text-muted">{ride.backendStatus === "in_progress" ? "Trip in progress" : ride.backendStatus === "arrived" ? "Captain has arrived" : ride.backendStatus === "captain_arriving" ? "Captain is on the way" : ride.status === "ongoing" ? copy("onTrip") : copy("arriving")}</p>
             <p className="font-display text-4xl tabular">
-              {leftMin} {copy("min")}
+              {ride.backendBookingId ? (ride.backendStatus === "in_progress" ? "On the way" : ride.backendStatus === "arrived" ? "At pickup" : "Captain assigned") : `${leftMin} ${copy("min")}`}
             </p>
             <p className="text-sm text-muted tabular">
-              {leftKm} km · {copy("trackSim")}
+              {ride.backendBookingId ? "Live status from Kida dispatch" : `${leftKm} km · ${copy("trackSim")`}
             </p>
           </div>
-          <Pill tone="warn">{ride.source === "call" ? copy("callCta") : copy("proto")}</Pill>
+          <Pill tone={ride.backendBookingId ? "ok" : "warn"}>{ride.backendBookingId ? "Live booking" : ride.source === "call" ? copy("callCta") : copy("proto")}</Pill>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-paper">
           <div className="h-full bg-primary" style={{ width: `${Math.round(ride.progress * 100)}%` }} />
@@ -66,13 +66,13 @@ export function TrackingScreen() {
           <div className="min-w-0 flex-1">
             <p className="font-semibold">{ride.driver.name}</p>
             <p className="text-sm text-muted">
-              {ride.driver.rating} · {ride.driver.trips} trips · {ride.driver.colour}
+              {ride.driver.rating ? `${ride.driver.rating} · ` : ""}{ride.driver.trips ? `${ride.driver.trips} trips · ` : ""}{ride.driver.colour ?? "Verified Kida Captain"}
             </p>
-            <p className="text-xs text-muted">{copy("simDriver")}</p>
+            <p className="text-xs text-muted">{ride.backendBookingId ? "Assigned through Kida" : copy("simDriver")}</p>
           </div>
           <div className="rounded-lg border-2 border-ink bg-road px-2 py-1 text-center">
             <p className="text-xs font-semibold">{copy("plate")}</p>
-            <p className="font-semibold tabular">{ride.driver.plate}</p>
+            <p className="font-semibold tabular">{ride.driver.plate ?? "Vehicle verified"}</p>
           </div>
         </div>
         {ride.tripPin ? <div className="rounded-2xl border border-primary bg-primary-soft px-3 py-3"><p className="text-xs font-semibold text-muted">YOUR RIDE PIN</p><p className="mt-1 font-display text-3xl tracking-[0.3em] tabular">{ride.tripPin}</p><p className="mt-1 text-xs text-muted">Share this PIN with the Captain only when you are at the pickup and have verified the vehicle.</p></div> : null}
