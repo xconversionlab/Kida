@@ -5,6 +5,7 @@ on:
     branches:
       - "backend-v1/customer-data"
       - "feature/open-maps"
+      - "feature/captain-app"
     paths:
       - "src/**"
       - "migrations/**"
@@ -17,6 +18,7 @@ on:
     branches:
       - "client-approval/customer-app"
       - "backend-v1/customer-data"
+      - "feature/open-maps"
     paths:
       - "src/**"
       - "migrations/**"
