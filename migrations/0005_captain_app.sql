@@ -3,7 +3,14 @@
 -- No public endpoint can grant the captain role or mark an application approved.
 
 ALTER TABLE public.kida_bookings
-  ADD COLUMN IF NOT EXISTS trip_pin_hash text;
+  ADD COLUMN IF NOT EXISTS trip_pin_hash text,
+  ADD COLUMN IF NOT EXISTS trip_pin_ciphertext text;
+
+-- At most one accepted/in-progress booking may be assigned to a Captain at a time.
+CREATE UNIQUE INDEX IF NOT EXISTS kida_one_active_booking_per_captain_uidx
+  ON public.kida_bookings (captain_user_id)
+  WHERE captain_user_id IS NOT NULL
+    AND status IN ('accepted','captain_arriving','arrived','in_progress');
 
 CREATE TABLE IF NOT EXISTS public.kida_captain_applications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
