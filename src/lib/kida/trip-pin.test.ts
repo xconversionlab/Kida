@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 import {
   createTripPinCredentials,
@@ -7,7 +7,13 @@ import {
 } from "./trip-pin.ts";
 
 const originalSecret = process.env.KIDA_TRIP_PIN_SECRET;
-process.env.KIDA_TRIP_PIN_SECRET = "kida-test-trip-pin-secret-with-more-than-32-characters";
+before(() => {
+  process.env.KIDA_TRIP_PIN_SECRET = "kida-test-trip-pin-secret-with-more-than-32-characters";
+});
+after(() => {
+  if (originalSecret === undefined) delete process.env.KIDA_TRIP_PIN_SECRET;
+  else process.env.KIDA_TRIP_PIN_SECRET = originalSecret;
+});
 
 test("trip PIN is encrypted for the booking owner and HMAC-verified for Captain pickup", () => {
   const bookingId = "6cc7e350-d1c9-47fc-a08e-0ce7fd8259a1";
@@ -34,5 +40,3 @@ test("trip PIN helpers reject a non-four-digit value", () => {
   );
 });
 
-if (originalSecret === undefined) delete process.env.KIDA_TRIP_PIN_SECRET;
-else process.env.KIDA_TRIP_PIN_SECRET = originalSecret;
