@@ -51,6 +51,16 @@ const pinSchema = z.object({
   tripPin: z.string().regex(/^\d{4}$/),
 }).strict();
 
+type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+type JsonObject = { [key: string]: JsonValue };
+
 type ApplicationRow = {
   id: string;
   status: string;
@@ -81,10 +91,10 @@ type BookingCardRow = {
   id: string;
   status: BookingStatus;
   vehicle_id: string;
-  pickup: Record<string, unknown>;
-  dropoff: Record<string, unknown>;
-  stops: Record<string, unknown>[];
-  client_fare_preview: Record<string, unknown> | null;
+  pickup: JsonObject;
+  dropoff: JsonObject;
+  stops: JsonObject[];
+  client_fare_preview: JsonObject | null;
   is_free_ride: boolean;
   payment_method: string;
   women_driver_requested: boolean;
@@ -639,11 +649,11 @@ export const listMyBookingsWithCaptain = createServerFn({ method: "GET" })
       service_mode: string;
       vehicle_id: string;
       status: BookingStatus;
-      pickup: Record<string, unknown>;
-      dropoff: Record<string, unknown>;
-      stops: Record<string, unknown>[];
+      pickup: JsonObject;
+      dropoff: JsonObject;
+      stops: JsonObject[];
       scheduled_for: string | null;
-      client_fare_preview: Record<string, unknown> | null;
+      client_fare_preview: JsonObject | null;
       is_free_ride: boolean;
       customer_reward_cycle: number | null;
       payment_method: string;
