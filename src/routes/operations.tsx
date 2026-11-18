@@ -49,6 +49,37 @@ function statusClass(status: string): string {
   return "border-blue-200 bg-blue-50 text-blue-800";
 }
 
+function tripStatusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    requested: "Requested",
+    searching: "Searching",
+    accepted: "Accepted",
+    captain_arriving: "Captain en route",
+    arrived: "Captain arrived",
+    in_progress: "In progress",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    expired: "Expired",
+    no_captain: "No Captain found",
+  };
+  return labels[status] ?? status.replaceAll("_", " ");
+}
+
+function tripStatusClass(status: string): string {
+  if (status === "completed") return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  if (status === "cancelled" || status === "expired" || status === "no_captain") return "border-red-200 bg-red-50 text-red-800";
+  if (status === "in_progress") return "border-violet-200 bg-violet-50 text-violet-800";
+  if (status === "requested" || status === "searching") return "border-amber-200 bg-amber-50 text-amber-900";
+  return "border-blue-200 bg-blue-50 text-blue-800";
+}
+
+function fareLabel(value: string | null): string {
+  if (value === null) return "Fare preview unavailable";
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return "Fare preview unavailable";
+  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(amount);
+}
+
 function OperationsDashboard() {
   const { user, isPending } = useCurrentUserState();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
@@ -93,8 +124,16 @@ function OperationsDashboard() {
       setLoading(false);
       return;
     }
+    let active = true;
     setLoading(true);
     void refresh(true);
+    const interval = window.setInterval(() => {
+      if (active) void refresh(true);
+    }, 8000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, [user, refresh]);
 
   const selected = dashboard?.applications.find((item) => item.id === selectedId) ?? null;
@@ -228,7 +267,10 @@ function OperationsDashboard() {
               <p className="text-sm font-bold">{user.displayName || "Operations admin"}</p>
               <p className="text-xs text-neutral-500">{user.primaryEmail}</p>
             </div>
-            <a href="/" className="inline-flex min-h-10 items-center rounded-xl border border-neutral-200 bg-white px-3 text-sm font-bold hover:bg-neutral-50">Customer app</a>
+            <div className="flex flex-wrap items-center gap-2">
+              <a href="/captain" className="inline-flex min-h-10 items-center rounded-xl border border-neutral-200 bg-white px-3 text-sm font-bold hover:bg-neutral-50">Captain app</a>
+              <a href="/" className="inline-flex min-h-10 items-center rounded-xl border border-neutral-200 bg-white px-3 text-sm font-bold hover:bg-neutral-50">Customer app</a>
+            </div>
           </div>
         </header>
 
@@ -264,6 +306,73 @@ function OperationsDashboard() {
             </div>
             <span className="rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm font-black text-amber-950">Required: {money(requiredBalance)}</span>
           </div>
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <Eyebrow>Shared customer and Captain dispatch</Eyebrow>
+              <h2 className="mt-1 text-2xl font-black tracking-tight">Live trips</h2>
+              <p className="mt-1 text-sm text-neutral-600">Bookings from the Customer app and trip updates from the Captain app appear here automatically.</p>
+            </div>
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800">Auto-refresh · 8 seconds</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <Metric label="Active bookings" value={dashboard.tripSummary.active_bookings} />
+            <Metric label="Awaiting Captain" value={dashboard.tripSummary.awaiting_captain} emphasize />
+            <Metric label="Assigned trips" value={dashboard.tripSummary.assigned_trips} />
+            <Metric label="In progress" value={dashboard.tripSummary.in_progress} />
+            <Metric label="Completed today" value={dashboard.tripSummary.completed_today} />
+            <Metric label="Captains online" value={dashboard.tripSummary.online_captains} />
+          </div>
+          {dashboard.trips.length === 0 ? (
+            <Panel>
+              <h3 className="font-black">No live customer bookings yet</h3>
+              <p className="mt-1 text-sm leading-6 text-neutral-600">When a customer creates a booking using a signed-in Kida account, it will appear here. The Captain app and Operations dashboard read from the same booking records.</p>
+            </Panel>
+          ) : (
+            <div className="grid gap-3">
+              {dashboard.trips.map((trip) => (
+                <Panel key={trip.id} className="space-y-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{trip.service_mode.replaceAll("_", " ")} · {trip.vehicle_id.toUpperCase()} · {trip.id.slice(0, 8)}</p>
+                      <h3 className="mt-1 text-lg font-black">{trip.customer_name}</h3>
+                      <p className="mt-1 text-xs text-neutral-500">Requested {dateLabel(trip.requested_at)}{trip.scheduled_for ? " · Scheduled " + dateLabel(trip.scheduled_for) : ""}</p>
+                    </div>
+                    <span className={"rounded-full border px-3 py-1.5 text-xs font-black " + tripStatusClass(trip.status)}>{tripStatusLabel(trip.status)}</span>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <Info label="Pickup" value={trip.pickup_label + (trip.pickup_line && trip.pickup_line !== trip.pickup_label ? " · " + trip.pickup_line : "")} />
+                    <Info label="Destination" value={trip.dropoff_label + (trip.dropoff_line && trip.dropoff_line !== trip.dropoff_label ? " · " + trip.dropoff_line : "")} />
+                    <Info label="Assigned Captain" value={trip.captain_name ? trip.captain_name + (trip.captain_registration_number ? " · " + trip.captain_registration_number : "") : "Awaiting assignment"} />
+                    <Info label="Fare preview" value={fareLabel(trip.fare_total)} />
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-3">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">Captain location</p>
+                      {trip.captain_latitude && trip.captain_longitude ? (
+                        <p className="mt-1 text-sm font-semibold">{Number(trip.captain_latitude).toFixed(5)}, {Number(trip.captain_longitude).toFixed(5)} · updated {trip.captain_location_updated_at ? dateLabel(trip.captain_location_updated_at) : "just now"}</p>
+                      ) : (
+                        <p className="mt-1 text-sm text-neutral-500">No fresh Captain GPS location (latest 90-second window).</p>
+                      )}
+                    </div>
+                    {trip.captain_latitude && trip.captain_longitude ? (
+                      <a
+                        href={"https://www.google.com/maps?q=" + encodeURIComponent(trip.captain_latitude + "," + trip.captain_longitude)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-10 items-center rounded-xl border border-neutral-200 px-3 text-xs font-bold hover:bg-neutral-50"
+                      >
+                        Open Captain location
+                      </a>
+                    ) : null}
+                    <p className="text-xs text-neutral-500">Last update {dateLabel(trip.updated_at)}</p>
+                  </div>
+                </Panel>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="grid items-start gap-4 lg:grid-cols-[minmax(300px,0.85fr)_minmax(0,1.4fr)]">
