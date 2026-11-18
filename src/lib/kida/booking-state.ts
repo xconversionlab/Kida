@@ -14,7 +14,7 @@ export const BOOKING_STATUSES = [
 export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 
 const TRANSITIONS: Record<BookingStatus, readonly BookingStatus[]> = {
-  requested: ["searching", "cancelled", "expired", "no_captain"],
+  requested: ["searching", "accepted", "cancelled", "expired", "no_captain"],
   searching: ["accepted", "cancelled", "expired", "no_captain"],
   accepted: ["captain_arriving", "cancelled"],
   captain_arriving: ["arrived", "cancelled"],
