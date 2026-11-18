@@ -13,7 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CaptainRouteImport } from './routes/captain'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OperationsRouteImport } from './routes/operations'
-import { Route as OperationsDemoRouteImport } from './routes/operations.demo'
+import { Route as OperationsDemoRouteImport } from './routes/operations_.demo'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -37,9 +37,9 @@ const OperationsRoute = OperationsRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperationsDemoRoute = OperationsDemoRouteImport.update({
-  id: '/demo',
-  path: '/demo',
-  getParentRoute: () => OperationsRoute,
+  id: '/operations_/demo',
+  path: '/operations/demo',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -51,7 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/captain': typeof CaptainRoute
   '/login': typeof LoginRoute
-  '/operations': typeof OperationsRouteWithChildren
+  '/operations': typeof OperationsRoute
   '/operations/demo': typeof OperationsDemoRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -59,7 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/captain': typeof CaptainRoute
   '/login': typeof LoginRoute
-  '/operations': typeof OperationsRouteWithChildren
+  '/operations': typeof OperationsRoute
   '/operations/demo': typeof OperationsDemoRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
@@ -68,8 +68,8 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/captain': typeof CaptainRoute
   '/login': typeof LoginRoute
-  '/operations': typeof OperationsRouteWithChildren
-  '/operations/demo': typeof OperationsDemoRoute
+  '/operations': typeof OperationsRoute
+  '/operations_/demo': typeof OperationsDemoRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
@@ -95,7 +95,7 @@ export interface FileRouteTypes {
     | '/captain'
     | '/login'
     | '/operations'
-    | '/operations/demo'
+    | '/operations_/demo'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
@@ -103,7 +103,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CaptainRoute: typeof CaptainRoute
   LoginRoute: typeof LoginRoute
-  OperationsRoute: typeof OperationsRouteWithChildren
+  OperationsRoute: typeof OperationsRoute
+  OperationsDemoRoute: typeof OperationsDemoRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -137,12 +138,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OperationsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/operations/demo': {
-      id: '/operations/demo'
-      path: '/demo'
+    '/operations_/demo': {
+      id: '/operations_/demo'
+      path: '/operations/demo'
       fullPath: '/operations/demo'
       preLoaderRoute: typeof OperationsDemoRouteImport
-      parentRoute: typeof OperationsRoute
+      parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -154,23 +155,12 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface OperationsRouteChildren {
-  OperationsDemoRoute: typeof OperationsDemoRoute
-}
-
-const OperationsRouteChildren: OperationsRouteChildren = {
-  OperationsDemoRoute: OperationsDemoRoute,
-}
-
-const OperationsRouteWithChildren = OperationsRoute._addFileChildren(
-  OperationsRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CaptainRoute: CaptainRoute,
   LoginRoute: LoginRoute,
-  OperationsRoute: OperationsRouteWithChildren,
+  OperationsRoute: OperationsRoute,
+  OperationsDemoRoute: OperationsDemoRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
