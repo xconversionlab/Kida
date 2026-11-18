@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as CaptainRouteImport } from './routes/captain'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OperationsRouteImport } from './routes/operations'
+import { Route as OperationsDemoRouteImport } from './routes/operations.demo'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const OperationsRoute = OperationsRouteImport.update({
   path: '/operations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OperationsDemoRoute = OperationsDemoRouteImport.update({
+  id: '/demo',
+  path: '/demo',
+  getParentRoute: () => OperationsRoute,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -45,14 +51,16 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/captain': typeof CaptainRoute
   '/login': typeof LoginRoute
-  '/operations': typeof OperationsRoute
+  '/operations': typeof OperationsRouteWithChildren
+  '/operations/demo': typeof OperationsDemoRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/captain': typeof CaptainRoute
   '/login': typeof LoginRoute
-  '/operations': typeof OperationsRoute
+  '/operations': typeof OperationsRouteWithChildren
+  '/operations/demo': typeof OperationsDemoRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -60,22 +68,42 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/captain': typeof CaptainRoute
   '/login': typeof LoginRoute
-  '/operations': typeof OperationsRoute
+  '/operations': typeof OperationsRouteWithChildren
+  '/operations/demo': typeof OperationsDemoRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/captain' | '/login' | '/operations' | '/api/auth/$'
+  fullPaths:
+    | '/'
+    | '/captain'
+    | '/login'
+    | '/operations'
+    | '/operations/demo'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/captain' | '/login' | '/operations' | '/api/auth/$'
-  id: '__root__' | '/' | '/captain' | '/login' | '/operations' | '/api/auth/$'
+  to:
+    | '/'
+    | '/captain'
+    | '/login'
+    | '/operations'
+    | '/operations/demo'
+    | '/api/auth/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/captain'
+    | '/login'
+    | '/operations'
+    | '/operations/demo'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CaptainRoute: typeof CaptainRoute
   LoginRoute: typeof LoginRoute
-  OperationsRoute: typeof OperationsRoute
+  OperationsRoute: typeof OperationsRouteWithChildren
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -109,6 +137,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OperationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/operations/demo': {
+      id: '/operations/demo'
+      path: '/demo'
+      fullPath: '/operations/demo'
+      preLoaderRoute: typeof OperationsDemoRouteImport
+      parentRoute: typeof OperationsRoute
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -119,11 +154,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface OperationsRouteChildren {
+  OperationsDemoRoute: typeof OperationsDemoRoute
+}
+
+const OperationsRouteChildren: OperationsRouteChildren = {
+  OperationsDemoRoute: OperationsDemoRoute,
+}
+
+const OperationsRouteWithChildren = OperationsRoute._addFileChildren(
+  OperationsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CaptainRoute: CaptainRoute,
   LoginRoute: LoginRoute,
-  OperationsRoute: OperationsRoute,
+  OperationsRoute: OperationsRouteWithChildren,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport
