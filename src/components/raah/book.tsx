@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { createMyBooking } from "@/lib/kida/server";
-import { setMyBookingTripPin } from "@/lib/kida/captain-server";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getPlace } from "@/lib/raah/places";
@@ -312,9 +311,11 @@ export function ConfirmScreen() {
     setSaveError("");
     try {
       requestId.current ??= crypto.randomUUID();
+      tripPinRef.current ??= String(1000 + Math.floor(Math.random() * 9000));
       const result = await createMyBooking({
         data: {
           clientRequestId: requestId.current,
+          tripPin: tripPinRef.current,
           serviceMode: "ride",
           vehicleId: vehicle,
           paymentMethod: payment,
@@ -339,11 +340,8 @@ export function ConfirmScreen() {
       if (rewardApplied && !result.is_free_ride) {
         throw new Error("Your sixth-ride reward could not be reserved. Refresh your rides and try again.");
       }
-      tripPinRef.current ??= String(1000 + Math.floor(Math.random() * 9000));
-      await setMyBookingTripPin({
-        data: { bookingId: result.id, tripPin: tripPinRef.current },
-      });
-      const tripPin = tripPinRef.current;
+      const tripPin = result.tripPin ?? tripPinRef.current;
+      if (!tripPin) throw new Error("Your secure trip PIN could not be created. Refresh your booking and retry.");
       requestId.current = null;
       tripPinRef.current = null;
       confirm(bookingTrip.route?.distanceKm, bookingTrip.route?.durationMinutes, bookingTrip.route?.path, {
