@@ -478,6 +478,12 @@ export const advanceCaptainBooking = createServerFn({ method: "POST" })
           where b.id = p.id
             and b.status = p.status
             and b.captain_user_id = $2
+            and (
+              (p.status = 'accepted' and $3 in ('captain_arriving','cancelled'))
+              or (p.status = 'captain_arriving' and $3 in ('arrived','cancelled'))
+              or (p.status = 'arrived' and $3 in ('in_progress','cancelled'))
+              or (p.status = 'in_progress' and $3 = 'completed')
+            )
           returning b.id, p.status as from_status, b.status as to_status, b.updated_at
        ),
        audit as (
