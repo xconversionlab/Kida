@@ -19,3 +19,13 @@ Location permission is needed while online. The first build tracks location whil
 GitHub Actions workflow `.github/workflows/build-kida-captain-apk.yml` builds a debug-signed APK and uploads it as `kida-captain-debug-apk`.
 
 The debug APK is for internal/client testing and sideloading. Play Store release requires a separately managed signing key and production operational integrations.
+
+## Download the latest test APK
+
+1. Open the repository's **Actions** tab.
+2. Select **Build Kida Captain APK**.
+3. Open the newest successful run for `feature/captain-app`.
+4. Download the `kida-captain-debug-apk` artifact and extract `app-debug.apk`.
+5. Transfer the APK to an Android device and install it. Android may ask you to allow installation from that source.
+
+The workflow builds a debug-signed internal testing APK. It is not a Play Store release build.
