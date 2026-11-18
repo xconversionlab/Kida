@@ -64,6 +64,7 @@ test("the auth schema is copied into the active migration directory", () => {
     { name: "0003_customer_booking_preferences.sql", path: "0003_customer_booking_preferences.sql" },
     { name: "0004_client_commercial_rules.sql", path: "0004_client_commercial_rules.sql" },
     { name: "0005_captain_app.sql", path: "0005_captain_app.sql" },
+    { name: "0006_captain_schema_compat.sql", path: "0006_captain_schema_compat.sql" },
   ]);
   assert.ok(readdirSync(join(migrationsDir, "auth")).includes("0001_auth.sql"));
 });
