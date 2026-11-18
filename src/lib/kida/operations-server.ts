@@ -154,55 +154,55 @@ export const getOperationsDashboard = createServerFn({ method: "GET" })
     );
 
     const trips = await sql.query<OperationsTrip>(
-      [
-        "select",
-        " b.id::text as id, b.service_mode, b.status, b.vehicle_id,",
-        " coalesce(nullif(customer_profile.display_name, ''), nullif(customer_user.\\"name\\", ''), 'Kida customer') as customer_name,",
-        " coalesce(nullif(b.pickup->>'label', ''), nullif(b.pickup->>'line', ''), 'Pickup location') as pickup_label,",
-        " nullif(b.pickup->>'line', '') as pickup_line,",
-        " nullif(b.pickup->>'lat', '') as pickup_latitude,",
-        " nullif(b.pickup->>'lng', '') as pickup_longitude,",
-        " coalesce(nullif(b.dropoff->>'label', ''), nullif(b.dropoff->>'line', ''), 'Drop-off location') as dropoff_label,",
-        " nullif(b.dropoff->>'line', '') as dropoff_line,",
-        " captain_user.\\"name\\" as captain_name,",
-        " captain_profile.registration_number as captain_registration_number,",
-        " captain_profile.service_city as captain_city,",
-        " location.latitude::text as captain_latitude,",
-        " location.longitude::text as captain_longitude,",
-        " location.updated_at::text as captain_location_updated_at,",
-        " b.client_fare_preview->>'total' as fare_total,",
-        " b.requested_at::text as requested_at,",
-        " b.scheduled_for::text as scheduled_for,",
-        " b.updated_at::text as updated_at",
-        "from public.kida_bookings b",
-        'left join public."user" customer_user on customer_user."id" = b.user_id',
-        "left join public.kida_profiles customer_profile on customer_profile.user_id = b.user_id",
-        'left join public."user" captain_user on captain_user."id" = b.captain_user_id',
-        "left join public.kida_captain_profiles captain_profile on captain_profile.captain_user_id = b.captain_user_id",
-        "left join public.kida_captain_locations location",
-        "  on location.captain_user_id = b.captain_user_id",
-        " and location.updated_at >= now() - interval '90 seconds'",
-        "where b.status in ('requested','searching','accepted','captain_arriving','arrived','in_progress')",
-        "   or (b.status in ('completed','cancelled','expired','no_captain') and b.updated_at >= now() - interval '24 hours')",
-        "order by case when b.status in ('requested','searching','accepted','captain_arriving','arrived','in_progress') then 0 else 1 end,",
-        "         b.updated_at desc",
-        "limit 100",
-      ].join("\\n"),
+      `select
+        b.id::text as id,
+        b.service_mode,
+        b.status,
+        b.vehicle_id,
+        coalesce(nullif(customer_profile.display_name, ''), nullif(customer_user."name", ''), 'Kida customer') as customer_name,
+        coalesce(nullif(b.pickup->>'label', ''), nullif(b.pickup->>'line', ''), 'Pickup location') as pickup_label,
+        nullif(b.pickup->>'line', '') as pickup_line,
+        nullif(b.pickup->>'lat', '') as pickup_latitude,
+        nullif(b.pickup->>'lng', '') as pickup_longitude,
+        coalesce(nullif(b.dropoff->>'label', ''), nullif(b.dropoff->>'line', ''), 'Drop-off location') as dropoff_label,
+        nullif(b.dropoff->>'line', '') as dropoff_line,
+        captain_user."name" as captain_name,
+        captain_profile.registration_number as captain_registration_number,
+        captain_profile.service_city as captain_city,
+        location.latitude::text as captain_latitude,
+        location.longitude::text as captain_longitude,
+        location.updated_at::text as captain_location_updated_at,
+        b.client_fare_preview->>'total' as fare_total,
+        b.requested_at::text as requested_at,
+        b.scheduled_for::text as scheduled_for,
+        b.updated_at::text as updated_at
+      from public.kida_bookings b
+      left join public."user" customer_user on customer_user."id" = b.user_id
+      left join public.kida_profiles customer_profile on customer_profile.user_id = b.user_id
+      left join public."user" captain_user on captain_user."id" = b.captain_user_id
+      left join public.kida_captain_profiles captain_profile on captain_profile.captain_user_id = b.captain_user_id
+      left join public.kida_captain_locations location
+        on location.captain_user_id = b.captain_user_id
+       and location.updated_at >= now() - interval '90 seconds'
+      where b.status in ('requested','searching','accepted','captain_arriving','arrived','in_progress')
+         or (b.status in ('completed','cancelled','expired','no_captain') and b.updated_at >= now() - interval '24 hours')
+      order by case when b.status in ('requested','searching','accepted','captain_arriving','arrived','in_progress') then 0 else 1 end,
+               b.updated_at desc
+      limit 100
+      `,
     );
 
     const tripSummaryRows = await sql.query<OperationsTripSummary>(
-      [
-        "select",
-        " count(*) filter (where status in ('requested','searching','accepted','captain_arriving','arrived','in_progress'))::int as active_bookings,",
-        " count(*) filter (where status in ('requested','searching') and captain_user_id is null)::int as awaiting_captain,",
-        " count(*) filter (where status in ('accepted','captain_arriving','arrived','in_progress'))::int as assigned_trips,",
-        " count(*) filter (where status = 'in_progress')::int as in_progress,",
-        " count(*) filter (where status = 'completed' and completed_at >= date_trunc('day', now()))::int as completed_today,",
-        " (select count(*)::int from public.kida_captain_profiles where approval_status = 'approved' and is_online = true) as online_captains",
-        "from public.kida_bookings",
-      ].join("\\n"),
+      `select
+        count(*) filter (where status in ('requested','searching','accepted','captain_arriving','arrived','in_progress'))::int as active_bookings,
+        count(*) filter (where status in ('requested','searching') and captain_user_id is null)::int as awaiting_captain,
+        count(*) filter (where status in ('accepted','captain_arriving','arrived','in_progress'))::int as assigned_trips,
+        count(*) filter (where status = 'in_progress')::int as in_progress,
+        count(*) filter (where status = 'completed' and completed_at >= date_trunc('day', now()))::int as completed_today,
+        (select count(*)::int from public.kida_captain_profiles where approval_status = 'approved' and is_online = true) as online_captains
+      from public.kida_bookings
+      `,
     );
-
     const requiredOpeningBalancePaise =
       settingsRows[0]?.required_opening_balance_paise ?? null;
 
