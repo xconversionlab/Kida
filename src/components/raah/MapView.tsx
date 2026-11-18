@@ -253,7 +253,12 @@ export function MapView({
         fillOpacity: 1,
       }).addTo(map);
     }
-  }, [mapReady, captainLocation?.lat, captainLocation?.lng]);
+    if (pickup) {
+      map.fitBounds([[pickup.lat, pickup.lng], location], { padding: [44, 44], maxZoom: 15 });
+    } else {
+      map.setView(location, Math.max(map.getZoom(), 14), { animate: true });
+    }
+  }, [mapReady, captainLocation?.lat, captainLocation?.lng, pickup?.lat, pickup?.lng]);
 
   function toggleGps() {
     if (watchIdRef.current !== null) {
