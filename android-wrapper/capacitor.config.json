@@ -4,7 +4,7 @@
   "webDir": "www",
   "backgroundColor": "#F5C518",
   "server": {
-    "url": "https://kida-customer-prototype-git-fea-34d52d-xconversionlabs-projects.vercel.app",
+    "url": "https://kida-customer-prototype-git-fea-00dff1-xconversionlabs-projects.vercel.app",
     "cleartext": false,
     "androidScheme": "https"
   },
