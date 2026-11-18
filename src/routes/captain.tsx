@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { signIn, authEnabled, GROK_PROVIDERS } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
@@ -99,11 +99,11 @@ function Field({ label, value, onChange, placeholder, type = "text", required = 
   );
 }
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <section className={`rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm ${className}`}>{children}</section>;
 }
 
-function Button({ children, onClick, disabled = false, variant = "dark", type = "button" }: {
+function Button({ children, onClick, disabled = false, variant = "dark", type = "button", className = "" }: {
   children: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
@@ -118,7 +118,7 @@ function Button({ children, onClick, disabled = false, variant = "dark", type = 
   };
   return (
     <button type={type} onClick={onClick} disabled={disabled}
-      className={`inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${styles[variant]}`}>
+      className={`inline-flex min-h-12 items-center justify-center rounded-xl px-4 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${styles[variant]} ${className}`}>
       {children}
     </button>
   );
