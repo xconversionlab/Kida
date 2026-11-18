@@ -80,6 +80,7 @@ export function MapView({
   drop,
   stops = [],
   routePath,
+  captainLocation,
   caption,
   className = "h-64",
 }: {
@@ -87,6 +88,7 @@ export function MapView({
   drop?: Selection | null;
   stops?: Selection[];
   routePath?: MapPoint[];
+  captainLocation?: MapPoint | null;
   caption?: string;
   className?: string;
 }) {
@@ -96,7 +98,8 @@ export function MapView({
   const dropLayerRef = useRef<LeafletLayer | null>(null);
   const stopLayersRef = useRef<LeafletLayer[]>([]);
   const routeLayerRef = useRef<LeafletLayer | null>(null);
-  const userMarkerRef = useRef<LeafletMarker | null>(null);\n  const captainMarkerRef = useRef<LeafletMarker | null>(null);
+  const userMarkerRef = useRef<LeafletMarker | null>(null);
+  const captainMarkerRef = useRef<LeafletMarker | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState("");
