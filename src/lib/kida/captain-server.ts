@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
@@ -96,6 +96,36 @@ function tripPinSecret(): string {
     throw new Error("Trip PIN verification is not configured. KIDA_TRIP_PIN_SECRET or BETTER_AUTH_SECRET is required.");
   }
   return secret;
+}
+
+function tripPinEncryptionKey(): Buffer {
+  return createHash("sha256").update(tripPinSecret()).digest();
+}
+
+function encryptTripPin(bookingId: string, tripPin: string): string {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", tripPinEncryptionKey(), iv);
+  cipher.setAAD(Buffer.from(bookingId, "utf8"));
+  const encrypted = Buffer.concat([cipher.update(tripPin, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return [iv.toString("hex"), tag.toString("hex"), encrypted.toString("hex")].join(".");
+}
+
+function decryptTripPin(bookingId: string, ciphertext: string | null): string | null {
+  if (!ciphertext) return null;
+  const [ivHex, tagHex, encryptedHex] = ciphertext.split(".");
+  if (!ivHex || !tagHex || !encryptedHex) return null;
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", tripPinEncryptionKey(), Buffer.from(ivHex, "hex"));
+    decipher.setAAD(Buffer.from(bookingId, "utf8"));
+    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(encryptedHex, "hex")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch {
+    return null;
+  }
 }
 
 function hashTripPin(bookingId: string, tripPin: string): string {
@@ -550,16 +580,17 @@ export const setMyBookingTripPin = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     const hash = hashTripPin(data.bookingId, data.tripPin);
+    const encrypted = encryptTripPin(data.bookingId, data.tripPin);
     const rows = await sql.query<{ id: string }>(
       `update public.kida_bookings
-          set trip_pin_hash = $3, updated_at = now()
+          set trip_pin_hash = $3, trip_pin_ciphertext = $4, updated_at = now()
         where id = $1::uuid
           and user_id = $2
           and captain_user_id is null
           and status in ('requested','searching')
           and (trip_pin_hash is null or trip_pin_hash = $3)
         returning id::text as id`,
-      [data.bookingId, context.userId, hash],
+      [data.bookingId, context.userId, hash, encrypted],
     );
     if (!rows[0]) throw new Error("The trip PIN could not be saved for this booking. Please refresh and retry.");
     return { saved: true };
@@ -570,8 +601,9 @@ export const listMyBookingsWithCaptain = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const sql = await getSql();
-    return sql.query<{
+    const rows = await sql.query<{
       id: string;
+      trip_pin_ciphertext: string | null;
       client_request_id: string;
       service_mode: string;
       vehicle_id: string;
@@ -598,7 +630,8 @@ export const listMyBookingsWithCaptain = createServerFn({ method: "GET" })
       captain_longitude: string | number | null;
       captain_location_updated_at: string | null;
     }>(
-      `select b.id::text as id, b.client_request_id::text as client_request_id,
+      `select b.id::text as id, b.trip_pin_ciphertext,
+              b.client_request_id::text as client_request_id,
               b.service_mode, b.vehicle_id, b.status, b.pickup, b.dropoff, b.stops,
               b.scheduled_for::text as scheduled_for, b.client_fare_preview,
               b.is_free_ride, b.customer_reward_cycle, b.payment_method,
@@ -626,4 +659,8 @@ export const listMyBookingsWithCaptain = createServerFn({ method: "GET" })
         limit 100`,
       [context.userId],
     );
+    return rows.map(({ trip_pin_ciphertext, ...booking }) => ({
+      ...booking,
+      trip_pin: decryptTripPin(booking.id, trip_pin_ciphertext),
+    }));
   });
