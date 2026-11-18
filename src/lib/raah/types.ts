@@ -130,11 +130,11 @@ export interface Quote {
 
 export interface Driver {
   name: string;
-  rating: number;
-  plate: string;
+  rating?: number;
+  plate?: string;
   vehicle: VehicleId;
-  trips: number;
-  colour: string;
+  trips?: number;
+  colour?: string;
 }
 
 export interface ChatMessage {
