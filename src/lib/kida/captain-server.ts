@@ -1,9 +1,9 @@
-import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { canTransitionBooking, type BookingStatus } from "./booking-state";
+import { createTripPinCredentials, decryptTripPin, matchesTripPin } from "./trip-pin";
 
 const vehicleSchema = z.enum(["bike", "auto", "mini", "xl"]);
 
@@ -102,59 +102,6 @@ type BookingCardRow = {
   requested_at: string;
   customer_name?: string | null;
 };
-
-function tripPinSecret(): string {
-  const secret = process.env.KIDA_TRIP_PIN_SECRET?.trim()
-    || process.env.BETTER_AUTH_SECRET?.trim()
-    || process.env.GROK_AUTH_CLIENT_SECRET?.trim();
-  if (!secret) {
-    throw new Error("Trip PIN verification is not configured. KIDA_TRIP_PIN_SECRET or BETTER_AUTH_SECRET is required.");
-  }
-  return secret;
-}
-
-function tripPinEncryptionKey(): Buffer {
-  return createHash("sha256").update(tripPinSecret()).digest();
-}
-
-function encryptTripPin(bookingId: string, tripPin: string): string {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", tripPinEncryptionKey(), iv);
-  cipher.setAAD(Buffer.from(bookingId, "utf8"));
-  const encrypted = Buffer.concat([cipher.update(tripPin, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return [iv.toString("hex"), tag.toString("hex"), encrypted.toString("hex")].join(".");
-}
-
-function decryptTripPin(bookingId: string, ciphertext: string | null): string | null {
-  if (!ciphertext) return null;
-  const [ivHex, tagHex, encryptedHex] = ciphertext.split(".");
-  if (!ivHex || !tagHex || !encryptedHex) return null;
-  try {
-    const decipher = createDecipheriv("aes-256-gcm", tripPinEncryptionKey(), Buffer.from(ivHex, "hex"));
-    decipher.setAAD(Buffer.from(bookingId, "utf8"));
-    decipher.setAuthTag(Buffer.from(tagHex, "hex"));
-    return Buffer.concat([
-      decipher.update(Buffer.from(encryptedHex, "hex")),
-      decipher.final(),
-    ]).toString("utf8");
-  } catch {
-    return null;
-  }
-}
-
-function hashTripPin(bookingId: string, tripPin: string): string {
-  return createHmac("sha256", tripPinSecret())
-    .update(bookingId + ":" + tripPin)
-    .digest("hex");
-}
-
-function matchesTripPin(bookingId: string, tripPin: string, storedHash: string | null): boolean {
-  if (!storedHash || !/^[a-f0-9]{64}$/i.test(storedHash)) return false;
-  const candidate = Buffer.from(hashTripPin(bookingId, tripPin), "hex");
-  const stored = Buffer.from(storedHash, "hex");
-  return candidate.length === stored.length && timingSafeEqual(candidate, stored);
-}
 
 async function requireCaptain(sql: Awaited<ReturnType<typeof getSql>>, userId: string) {
   const rows = await sql.query<ProfileRow>(
@@ -620,8 +567,7 @@ export const setMyBookingTripPin = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
     const sql = await getSql();
-    const hash = hashTripPin(data.bookingId, data.tripPin);
-    const encrypted = encryptTripPin(data.bookingId, data.tripPin);
+    const credentials = createTripPinCredentials(data.bookingId, data.tripPin);
     const rows = await sql.query<{ id: string }>(
       `update public.kida_bookings
           set trip_pin_hash = $3, trip_pin_ciphertext = $4, updated_at = now()
@@ -631,7 +577,7 @@ export const setMyBookingTripPin = createServerFn({ method: "POST" })
           and status in ('requested','searching')
           and (trip_pin_hash is null or trip_pin_hash = $3)
         returning id::text as id`,
-      [data.bookingId, context.userId, hash, encrypted],
+      [data.bookingId, context.userId, credentials.tripPinHash, credentials.tripPinCiphertext],
     );
     if (!rows[0]) throw new Error("The trip PIN could not be saved for this booking. Please refresh and retry.");
     return { saved: true };
