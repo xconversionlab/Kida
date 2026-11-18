@@ -1,9 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { BookingStatus } from "./booking-state";
 import { parseOsrmRouteResponse } from "./osrm-route";
+import { createTripPinCredentials, decryptTripPin } from "./trip-pin";
 
 const languageSchema = z.enum(["en", "hi", "ta", "te", "kn", "ml", "bn", "mr", "gu", "pa"]);
 
@@ -65,7 +67,12 @@ const createBookingSchema = z.object({
   scheduledFor: z.string().datetime().nullable().optional(),
   farePreview: farePreviewSchema.nullable().optional(),
   customerRewardCode: z.enum(["KIDA_6TH_RIDE_FREE"]).nullable().optional(),
-}).strict();
+  tripPin: z.string().regex(/^\\d{4}$/).optional(),
+}).strict().superRefine((data, ctx) => {
+  if (data.serviceMode === "ride" && !data.tripPin) {
+    ctx.addIssue({ code: "custom", path: ["tripPin"], message: "A four-digit trip PIN is required for every ride booking." });
+  }
+});
 
 const profileSchema = z.object({
   displayName: z.string().trim().min(1).max(80),
@@ -207,15 +214,25 @@ export const createMyBooking = createServerFn({ method: "POST" })
     const sql = await getSql();
 
     // Return a prior idempotent request before checking reward eligibility again.
-    const existing = await sql.query<Pick<BookingRow, "id" | "client_request_id" | "status" | "created_at" | "is_free_ride">>(
+    const existing = await sql.query<{
+      id: string;
+      client_request_id: string;
+      status: BookingStatus;
+      created_at: string;
+      is_free_ride: boolean;
+      trip_pin_ciphertext: string | null;
+    }>(
       `select id::text as id, client_request_id::text as client_request_id,
-              status, created_at::text as created_at, is_free_ride
+              status, created_at::text as created_at, is_free_ride, trip_pin_ciphertext
          from public.kida_bookings
         where user_id = $1 and client_request_id = $2::uuid
         limit 1`,
       [context.userId, data.clientRequestId],
     );
-    if (existing[0]) return existing[0];
+    if (existing[0]) {
+      const { trip_pin_ciphertext, ...booking } = existing[0];
+      return { ...booking, tripPin: decryptTripPin(booking.id, trip_pin_ciphertext) };
+    }
 
     let customerRewardCycle: number | null = null;
     if (data.customerRewardCode === "KIDA_6TH_RIDE_FREE") {
@@ -277,21 +294,33 @@ export const createMyBooking = createServerFn({ method: "POST" })
     const stops = JSON.stringify(data.stops.map(persistSelection));
     const farePreview = data.farePreview ? JSON.stringify(data.farePreview) : null;
     const scheduledFor = data.scheduledFor ?? null;
+    const bookingId = randomUUID();
+    const pinCredentials = data.tripPin
+      ? createTripPinCredentials(bookingId, data.tripPin)
+      : null;
 
-    // Insert + initial audit event are one SQL statement. A repeated
-    // clientRequestId returns the existing row without creating a duplicate.
-    const rows = await sql.query<Pick<BookingRow, "id" | "client_request_id" | "status" | "created_at" | "is_free_ride">>(
+    // Insert, customer trip PIN credentials and first audit event are one SQL
+    // statement. A Captain can never accept a ride before PIN verification is ready.
+    const rows = await sql.query<{
+      id: string;
+      client_request_id: string;
+      status: BookingStatus;
+      created_at: string;
+      is_free_ride: boolean;
+      trip_pin_ciphertext: string | null;
+    }>(
       `with inserted as (
          insert into public.kida_bookings
-           (user_id, client_request_id, service_mode, vehicle_id,
+           (id, user_id, client_request_id, service_mode, vehicle_id,
             payment_method, women_driver_requested,
             pickup, dropoff, stops, scheduled_for, client_fare_preview,
-            is_free_ride, customer_reward_cycle)
-         values ($1, $2::uuid, $3, $4, $5, $6,
-                 $7::jsonb, $8::jsonb, $9::jsonb, $10::timestamptz, $11::jsonb,
-                 $12, $13)
+            is_free_ride, customer_reward_cycle, trip_pin_hash, trip_pin_ciphertext)
+         values ($1::uuid, $2, $3::uuid, $4, $5,
+                 $6, $7,
+                 $8::jsonb, $9::jsonb, $10::jsonb, $11::timestamptz, $12::jsonb,
+                 $13, $14, $15, $16)
          on conflict do nothing
-         returning id, user_id, client_request_id, status, created_at, is_free_ride
+         returning id, user_id, client_request_id, status, created_at, is_free_ride, trip_pin_ciphertext
        ),
        audit as (
          insert into public.kida_booking_events
@@ -302,16 +331,18 @@ export const createMyBooking = createServerFn({ method: "POST" })
          returning booking_id
        )
        select id::text as id, client_request_id::text as client_request_id,
-              status, created_at::text as created_at, is_free_ride
+              status, created_at::text as created_at, is_free_ride, trip_pin_ciphertext
          from inserted
        union all
-       select b.id::text, b.client_request_id::text, b.status, b.created_at::text, b.is_free_ride
+       select b.id::text, b.client_request_id::text, b.status, b.created_at::text,
+              b.is_free_ride, b.trip_pin_ciphertext
          from public.kida_bookings b
-        where b.user_id = $1
-          and b.client_request_id = $2::uuid
+        where b.user_id = $2
+          and b.client_request_id = $3::uuid
           and not exists (select 1 from inserted)
        limit 1`,
       [
+        bookingId,
         context.userId,
         data.clientRequestId,
         data.serviceMode,
@@ -325,10 +356,13 @@ export const createMyBooking = createServerFn({ method: "POST" })
         farePreview,
         Boolean(customerRewardCycle),
         customerRewardCycle,
+        pinCredentials?.tripPinHash ?? null,
+        pinCredentials?.tripPinCiphertext ?? null,
       ],
     );
     if (!rows[0]) throw new Error("Unable to create booking");
-    return rows[0];
+    const { trip_pin_ciphertext, ...booking } = rows[0];
+    return { ...booking, tripPin: decryptTripPin(booking.id, trip_pin_ciphertext) };
   });
 
 export const listMyBookings = createServerFn({ method: "GET" })

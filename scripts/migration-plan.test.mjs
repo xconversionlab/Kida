@@ -8,10 +8,11 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { isMigrationFile, migrationName, pendingMigrations } from "./migration-plan.mjs";
-import { projectRoot } from "./with-app-env.mjs";
+const projectRoot = () => join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const AUTH_MIGRATION = "0001_auth.sql";
 
@@ -63,6 +64,9 @@ test("the auth schema is copied into the active migration directory", () => {
     { name: "0002_kida_core.sql", path: "0002_kida_core.sql" },
     { name: "0003_customer_booking_preferences.sql", path: "0003_customer_booking_preferences.sql" },
     { name: "0004_client_commercial_rules.sql", path: "0004_client_commercial_rules.sql" },
+    { name: "0005_captain_app.sql", path: "0005_captain_app.sql" },
+    { name: "0006_captain_schema_compat.sql", path: "0006_captain_schema_compat.sql" },
+    { name: "0007_captain_application_reviews.sql", path: "0007_captain_application_reviews.sql" },
   ]);
   assert.ok(readdirSync(join(migrationsDir, "auth")).includes("0001_auth.sql"));
 });

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { authEnabled, GROK_PROVIDERS, signIn, signOut } from "@/lib/auth/client";
+import { signOut } from "@/lib/auth/client";
+import { EmailPasswordForm } from "@/components/auth/EmailPasswordForm";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { createMySafetyIncident, createMySupportTicket, getMyProfile, saveMyProfile } from "@/lib/kida/server";
 import { Award, Bell, BriefcaseBusiness, ChevronRight, Coins, CreditCard, Crown, Gift, History, HelpCircle, Package, Settings, ShieldCheck, ShieldAlert } from "lucide-react";
@@ -35,7 +36,7 @@ export function AccountScreen() {
     if (signingOut) return;
     setSigningOut(true);
     try {
-      if (authEnabled && user && !user.isDevFallback) await signOut();
+      if (user) await signOut();
       logout();
     } catch {
       setToast("Could not sign out of your Kida account. Please retry.");
@@ -54,7 +55,7 @@ export function AccountScreen() {
             <span className="block text-lg font-semibold">{name}</span>
             <span className="text-sm text-muted">+91 {prettyPhone(phone)}</span>
             <span className="mt-1 block text-xs font-semibold text-primary">
-              {authEnabled && user && !user.isDevFallback
+              {user
                 ? "Kida account · signed in · phone not verified"
                 : "Preview account · not phone-verified"}
             </span>
@@ -68,6 +69,10 @@ export function AccountScreen() {
             </button>
           ))}
         </div>
+        <a href="/captain" className="mt-3 flex min-h-12 items-center justify-between rounded-2xl border border-primary/30 bg-primary-soft px-3 text-sm font-semibold text-ink">
+          Become a Kida Captain
+          <ChevronRight className="size-4" />
+        </a>
         <Btn variant="line" className="mt-4 w-full" disabled={signingOut} onClick={() => void handleLogout()}>
           {signingOut ? "Signing out…" : copy("logout")}
         </Btn>
@@ -181,7 +186,7 @@ export function ProfileScreen() {
             <p className="truncate font-semibold">{name}</p>
             <p className="text-sm text-muted tabular">+91 {prettyPhone(phone)}</p>
             <p className="mt-1 text-xs font-semibold text-primary">
-              {authEnabled && user && !user.isDevFallback
+              {user
                 ? "Kida account · signed in · phone not verified"
                 : "Preview account · not phone-verified"}
             </p>
@@ -229,20 +234,16 @@ export function ProfileScreen() {
           <ChevronRight className="size-4 text-muted" />
         </button>
 
-        {authEnabled && !user ? (
+        {!user ? (
           <div className="space-y-2 rounded-2xl bg-primary-soft p-3">
             <p className="text-sm font-semibold">Sign in to save your Kida profile</p>
-            {GROK_PROVIDERS.map((provider) => (
-              <button key={provider.providerId} type="button" onClick={() => void signIn(provider.providerId, { callbackURL: "/" })} className="min-h-10 w-full rounded-xl border border-line bg-surface text-sm font-semibold">
-                Continue with {provider.label}
-              </button>
-            ))}
+            <EmailPasswordForm callbackURL="/" />
           </div>
         ) : null}
         <div className="rounded-2xl border border-line p-3">
           <p className="mb-2 text-sm font-semibold">Edit profile</p>
           <input className={inputClass} value={draft} onChange={(event) => setDraft(event.target.value)} aria-label={copy("namePh")} />
-          <Btn variant="soft" className="mt-2" disabled={savingProfile || draft.trim().length < 2 || (authEnabled && !user)} onClick={() => void saveCustomerProfile()}>
+          <Btn variant="soft" className="mt-2" disabled={savingProfile || draft.trim().length < 2 || (!user)} onClick={() => void saveCustomerProfile()}>
             {savingProfile ? "Saving…" : copy("save")}
           </Btn>
           {profileNotice ? <p className="mt-2 text-xs text-muted">{profileNotice}</p> : null}
@@ -846,14 +847,10 @@ export function TicketScreen() {
           {saving ? "Saving request…" : "Send support request"}
         </Btn>
         {notice ? <p role="alert" className="text-sm text-muted">{notice}</p> : null}
-        {authEnabled && !user && !isPending ? (
+        {!user && !isPending ? (
           <div className="space-y-2 rounded-2xl bg-paper p-3">
             <p className="text-sm font-semibold">Sign in to submit a support request</p>
-            {GROK_PROVIDERS.map((provider) => (
-              <button key={provider.providerId} type="button" onClick={() => void signIn(provider.providerId, { callbackURL: "/" })} className="min-h-10 w-full rounded-xl border border-line bg-surface text-sm font-semibold">
-                Continue with {provider.label}
-              </button>
-            ))}
+            <EmailPasswordForm callbackURL="/" />
           </div>
         ) : null}
       </div>

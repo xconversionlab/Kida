@@ -220,7 +220,7 @@ interface RaahState {
   setPromoInput: (value: string) => void;
   setPromo: (promo: PromoResult | null) => void;
   setWhen: (when: string) => void;
-  confirmBooking: (routeDistanceKm?: number, roadDurationMinutes?: number, routePath?: RouteCoordinate[], backendBooking?: { id: string; status: "requested"; isFreeRide?: boolean }) => void;
+  confirmBooking: (routeDistanceKm?: number, roadDurationMinutes?: number, routePath?: RouteCoordinate[], backendBooking?: { id: string; status: "requested"; isFreeRide?: boolean; tripPin?: string }) => void;
   assignDriver: () => void;
   tickRide: () => void;
   completeRide: () => void;
@@ -441,25 +441,25 @@ export const useRaah = create<RaahState>()(
           source: "app",
           messages: [],
           stops: [...s.stops],
-          tripPin: String(1000 + Math.floor(Math.random() * 9000)),
+          tripPin: backendBooking?.tripPin ?? String(1000 + Math.floor(Math.random() * 9000)),
           routePath: routePath?.length ? routePath : undefined,
           womenDriverRequested: s.womenDriverPreference,
         };
         set({
           rides: [ride, ...s.rides],
-          activeRideId: backendBooking ? null : ride.id,
+          activeRideId: scheduled ? null : ride.id,
           selectedRideId: ride.id,
           usedPromos: s.promo?.ok && s.promo.code ? [...s.usedPromos, s.promo.code] : s.usedPromos,
           promo: null,
           promoInput: "",
           when: "now",
           stops: [],
-          screen: backendBooking || scheduled ? "history" : "assigning",
+          screen: scheduled ? "history" : "assigning",
           stack: [],
           toast: backendBooking?.isFreeRide
             ? "Your sixth-ride reward is reserved. Kida will fund the Captain payout."
             : backendBooking
-              ? "Your booking request is saved to your Kida account. Captain matching is not active yet."
+              ? "Your Kida ride request is live. We will update this screen when a Captain accepts it."
               : t(s.lang, "booked"),
         });
         if (s.voiceOn) speak(s.lang, t(s.lang, "booked"));

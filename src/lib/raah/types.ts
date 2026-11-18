@@ -130,11 +130,11 @@ export interface Quote {
 
 export interface Driver {
   name: string;
-  rating: number;
-  plate: string;
+  rating?: number;
+  plate?: string;
   vehicle: VehicleId;
-  trips: number;
-  colour: string;
+  trips?: number;
+  colour?: string;
 }
 
 export interface ChatMessage {
@@ -183,6 +183,8 @@ export interface Ride {
   /** Present only for rows loaded from the authenticated customer backend. */
   backendBookingId?: string;
   backendStatus?: "requested" | "searching" | "accepted" | "captain_arriving" | "arrived" | "in_progress" | "completed" | "cancelled" | "expired" | "no_captain";
+  /** Latest server-stored GPS fix from the assigned Captain, refreshed while the ride is active. */
+  captainLocation?: { lat: number; lng: number; updatedAt: string };
   /** The account-backed sixth-ride reward is reserved/applied to this booking. */
   isCustomerRewardRide?: boolean;
 }

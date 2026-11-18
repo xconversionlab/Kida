@@ -80,6 +80,7 @@ export function MapView({
   drop,
   stops = [],
   routePath,
+  captainLocation,
   caption,
   className = "h-64",
 }: {
@@ -87,6 +88,7 @@ export function MapView({
   drop?: Selection | null;
   stops?: Selection[];
   routePath?: MapPoint[];
+  captainLocation?: MapPoint | null;
   caption?: string;
   className?: string;
 }) {
@@ -97,6 +99,7 @@ export function MapView({
   const stopLayersRef = useRef<LeafletLayer[]>([]);
   const routeLayerRef = useRef<LeafletLayer | null>(null);
   const userMarkerRef = useRef<LeafletMarker | null>(null);
+  const captainMarkerRef = useRef<LeafletMarker | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState("");
@@ -228,6 +231,34 @@ export function MapView({
     stops.map((point) => `${point.lat},${point.lng}`).join(";"),
     routePath?.map((point) => `${point.lat},${point.lng}`).join(";"),
   ]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const L = window.L;
+    if (!mapReady || !map || !L) return;
+    if (!captainLocation) {
+      captainMarkerRef.current?.remove();
+      captainMarkerRef.current = null;
+      return;
+    }
+    const location: Coordinate = [captainLocation.lat, captainLocation.lng];
+    if (captainMarkerRef.current) {
+      captainMarkerRef.current.setLatLng(location);
+    } else {
+      captainMarkerRef.current = L.circleMarker(location, {
+        radius: 10,
+        color: "#ffffff",
+        weight: 3,
+        fillColor: "#16784B",
+        fillOpacity: 1,
+      }).addTo(map);
+    }
+    if (pickup) {
+      map.fitBounds([[pickup.lat, pickup.lng], location], { padding: [44, 44], maxZoom: 15 });
+    } else {
+      map.setView(location, Math.max(map.getZoom(), 14), { animate: true });
+    }
+  }, [mapReady, captainLocation?.lat, captainLocation?.lng, pickup?.lat, pickup?.lng]);
 
   function toggleGps() {
     if (watchIdRef.current !== null) {

@@ -18,22 +18,51 @@ export function TrackingScreen() {
   const complete = useRaah((s) => s.completeRide);
   const open = useRaah((s) => s.open);
   const [why, setWhy] = useState(false);
+  const backendRide = Boolean(ride?.backendBookingId);
+
   useEffect(() => {
+    if (backendRide) return;
     const id = window.setInterval(() => tick(), 800);
     return () => window.clearInterval(id);
-  }, [tick]);
-  if (!ride || !ride.driver) {
+  }, [tick, backendRide]);
+
+  if (!ride) {
+    return <div className="px-4 py-8"><p className="text-muted">{copy("searching")}</p></div>;
+  }
+
+  if (backendRide && !ride.driver) {
     return (
       <div className="px-4 py-8">
-        <p className="text-muted">{copy("searching")}</p>
-        <Btn className="mt-4" onClick={() => useRaah.getState().replace("home")}>
-          {copy("navHome")}
-        </Btn>
+        <Header title="Finding your Captain" subtitle="Your Kida ride request is being matched." />
+        <div className="mt-4 rounded-3xl border border-line bg-paper p-4">
+          <p className="font-semibold">Waiting for an eligible Captain</p>
+          <p className="mt-1 text-sm text-muted">Kida will update this screen after a Captain accepts. Keep the app open to receive dispatch updates.</p>
+        </div>
       </div>
     );
   }
+
+  if (!ride.driver) {
+    return (
+      <div className="px-4 py-8">
+        <p className="text-muted">{copy("searching")}</p>
+        <Btn className="mt-4" onClick={() => useRaah.getState().replace("home")}>{copy("navHome")}</Btn>
+      </div>
+    );
+  }
+
   const leftKm = Math.max(0.2, Math.round(ride.fare.km * (1 - ride.progress) * 10) / 10);
   const leftMin = Math.max(1, Math.round(ride.fare.minutes * (1 - ride.progress)));
+  const statusLabel = ride.backendStatus === "in_progress"
+    ? "Trip in progress"
+    : ride.backendStatus === "arrived"
+      ? "Captain has arrived"
+      : ride.backendStatus === "captain_arriving"
+        ? "Captain is on the way"
+        : ride.backendStatus === "accepted"
+          ? "Captain accepted your ride"
+          : ride.status === "ongoing" ? copy("onTrip") : copy("arriving");
+
   return (
     <div className="pb-6">
       <div className="px-4 pt-3">
@@ -42,70 +71,82 @@ export function TrackingScreen() {
           drop={ride.drop}
           stops={ride.stops ?? []}
           routePath={ride.routePath}
+          captainLocation={ride.captainLocation}
           className="h-72"
         />
       </div>
       <div className="space-y-3 px-4 pt-3">
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-sm text-muted">{ride.status === "ongoing" ? copy("onTrip") : copy("arriving")}</p>
-            <p className="font-display text-4xl tabular">
-              {leftMin} {copy("min")}
+            <p className="text-sm text-muted">{statusLabel}</p>
+            <p className="font-display text-3xl tabular">
+              {backendRide
+                ? ride.backendStatus === "in_progress" ? "On the way" : ride.backendStatus === "arrived" ? "At pickup" : "Captain assigned"
+                : `${leftMin} ${copy("min")}`}
             </p>
             <p className="text-sm text-muted tabular">
-              {leftKm} km · {copy("trackSim")}
+              {backendRide
+                ? ride.captainLocation ? "Captain location is updating" : "Waiting for the latest Captain location"
+                : `${leftKm} km · ${copy("trackSim")}`}
             </p>
           </div>
-          <Pill tone="warn">{ride.source === "call" ? copy("callCta") : copy("proto")}</Pill>
+          <Pill tone={backendRide ? "ok" : "warn"}>{backendRide ? "Kida dispatch" : ride.source === "call" ? copy("callCta") : copy("proto")}</Pill>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-paper">
-          <div className="h-full bg-primary" style={{ width: `${Math.round(ride.progress * 100)}%` }} />
-        </div>
+        {!backendRide ? (
+          <div className="h-2 overflow-hidden rounded-full bg-paper">
+            <div className="h-full bg-primary" style={{ width: `${Math.round(ride.progress * 100)}%` }} />
+          </div>
+        ) : null}
         <div className="kida-card flex items-center gap-3 rounded-3xl border border-line p-3">
           <Avatar name={ride.driver.name} className="size-14" />
           <div className="min-w-0 flex-1">
             <p className="font-semibold">{ride.driver.name}</p>
             <p className="text-sm text-muted">
-              {ride.driver.rating} · {ride.driver.trips} trips · {ride.driver.colour}
+              {ride.driver.rating ? `${ride.driver.rating} · ` : ""}
+              {ride.driver.trips ? `${ride.driver.trips} trips · ` : ""}
+              {ride.driver.colour ?? (backendRide ? "Verified Kida Captain" : "")}
             </p>
-            <p className="text-xs text-muted">{copy("simDriver")}</p>
+            <p className="text-xs text-muted">{backendRide ? "Assigned through Kida" : copy("simDriver")}</p>
           </div>
           <div className="rounded-lg border-2 border-ink bg-road px-2 py-1 text-center">
             <p className="text-xs font-semibold">{copy("plate")}</p>
-            <p className="font-semibold tabular">{ride.driver.plate}</p>
+            <p className="font-semibold tabular">{ride.driver.plate ?? "Vehicle verified"}</p>
           </div>
         </div>
-        {ride.tripPin ? <div className="rounded-2xl border border-primary bg-primary-soft px-3 py-3"><p className="text-xs font-semibold text-muted">YOUR RIDE PIN</p><p className="mt-1 font-display text-3xl tracking-[0.3em] tabular">{ride.tripPin}</p><p className="mt-1 text-xs text-muted">Share this PIN with the Captain only when you are at the pickup and have verified the vehicle.</p></div> : null}
+        {ride.tripPin ? (
+          <div className="rounded-2xl border border-primary bg-primary-soft px-3 py-3">
+            <p className="text-xs font-semibold text-muted">YOUR RIDE PIN</p>
+            <p className="mt-1 font-display text-3xl tracking-[0.3em] tabular">{ride.tripPin}</p>
+            <p className="mt-1 text-xs text-muted">Show this PIN to the Captain only after you have reached the pickup and verified the vehicle.</p>
+          </div>
+        ) : null}
         <div className="grid grid-cols-4 gap-2">
-          <div className="grid h-16 place-items-center rounded-2xl bg-paper text-center text-xs font-semibold opacity-70 cursor-not-allowed" aria-disabled="true" title="Driver contact becomes available after a live dispatch integration">
+          <div className="grid h-16 place-items-center rounded-2xl bg-paper text-center text-xs font-semibold opacity-70 cursor-not-allowed" aria-disabled="true" title="Captain calling will be enabled with the masked-call provider">
             <Phone className="size-5" />
             {copy("callDriver")}
           </div>
           <button type="button" onClick={() => open("chat")} className="grid h-16 place-items-center rounded-2xl bg-paper text-xs font-semibold">
-            <MessageCircle className="size-5" />
-            {copy("message")}
+            <MessageCircle className="size-5" />{copy("message")}
           </button>
           <button type="button" onClick={() => open("share")} className="grid h-16 place-items-center rounded-2xl bg-paper text-xs font-semibold">
-            <Share2 className="size-5" />
-            {copy("shareTrip")}
+            <Share2 className="size-5" />{copy("shareTrip")}
           </button>
           <button type="button" onClick={() => open("sos")} className="grid h-16 place-items-center rounded-2xl bg-danger-soft text-xs font-semibold text-danger">
-            <ShieldAlert className="size-5" />
-            {copy("sos")}
+            <ShieldAlert className="size-5" />{copy("sos")}
           </button>
         </div>
         <p className="text-xs text-muted">
-          {vehicleLabel(lang, ride.vehicle)} · {copy("callDriver")} opens your dialer for the prototype desk, not a live driver.
+          {vehicleLabel(lang, ride.vehicle)} · {backendRide ? "Captain contact and payments are not enabled yet." : copy("callDriver") + " is a prototype action."}
         </p>
-        <div className="grid grid-cols-2 gap-2">
-          <Btn variant="line" onClick={() => setWhy((v) => !v)}>
-            {copy("cancelRide")}
-          </Btn>
-          <Btn variant="soft" onClick={complete}>
-            {copy("endDemo")}
-          </Btn>
-        </div>
-        {why ? <CancelBox /> : null}
+        {!backendRide ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Btn variant="line" onClick={() => setWhy((value) => !value)}>{copy("cancelRide")}</Btn>
+            <Btn variant="soft" onClick={complete}>{copy("endDemo")}</Btn>
+          </div>
+        ) : (
+          <p className="rounded-xl bg-paper p-3 text-sm text-muted">Your Captain's trip progress and location will refresh automatically. Payments are not being collected in this build.</p>
+        )}
+        {why && !backendRide ? <CancelBox /> : null}
       </div>
     </div>
   );

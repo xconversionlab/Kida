@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createMyBooking } from "@/lib/kida/server";
-import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
+import { EmailPasswordForm } from "@/components/auth/EmailPasswordForm";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getPlace } from "@/lib/raah/places";
 import { getOsmDrivingRoute, type DrivingRoutePreview } from "@/lib/raah/osmMaps";
@@ -292,6 +292,7 @@ export function ConfirmScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const requestId = useRef<string | null>(null);
+  const tripPinRef = useRef<string | null>(null);
   if (!drop || !place || !trip) return null;
   const bookingTrip = trip;
   const rewardProgress = getCustomerRewardProgress(rides);
@@ -310,9 +311,11 @@ export function ConfirmScreen() {
     setSaveError("");
     try {
       requestId.current ??= crypto.randomUUID();
+      tripPinRef.current ??= String(1000 + Math.floor(Math.random() * 9000));
       const result = await createMyBooking({
         data: {
           clientRequestId: requestId.current,
+          tripPin: tripPinRef.current,
           serviceMode: "ride",
           vehicleId: vehicle,
           paymentMethod: payment,
@@ -337,11 +340,15 @@ export function ConfirmScreen() {
       if (rewardApplied && !result.is_free_ride) {
         throw new Error("Your sixth-ride reward could not be reserved. Refresh your rides and try again.");
       }
+      const tripPin = result.tripPin ?? tripPinRef.current;
+      if (!tripPin) throw new Error("Your secure trip PIN could not be created. Refresh your booking and retry.");
       requestId.current = null;
+      tripPinRef.current = null;
       confirm(bookingTrip.route?.distanceKm, bookingTrip.route?.durationMinutes, bookingTrip.route?.path, {
         id: result.id,
         status: "requested",
         isFreeRide: result.is_free_ride,
+        tripPin,
       });
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Your booking could not be saved. Please retry.");
@@ -376,22 +383,13 @@ export function ConfirmScreen() {
         </button>
         {authPending ? (
           <p className="rounded-2xl bg-paper px-3 py-3 text-sm text-muted">Checking your Kida account…</p>
-        ) : authEnabled && !user ? (
+        ) : !user ? (
           <div className="space-y-3 rounded-2xl border border-primary/30 bg-primary-soft p-3">
             <div>
               <p className="font-semibold">Sign in to save this booking</p>
               <p className="mt-1 text-sm text-muted">Your ride request will be stored under your Kida account. Use a verified account session to continue.</p>
             </div>
-            {GROK_PROVIDERS.map((provider) => (
-              <button
-                key={provider.providerId}
-                type="button"
-                onClick={() => void signIn(provider.providerId, { callbackURL: "/" })}
-                className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 text-sm font-semibold"
-              >
-                Continue with {provider.label}
-              </button>
-            ))}
+            <EmailPasswordForm callbackURL="/" />
           </div>
         ) : (
           <Btn className="w-full" disabled={saving || trip.routeState === "loading" || rewardRouteNeedsVerification} onClick={() => void saveBooking()}>
@@ -400,7 +398,7 @@ export function ConfirmScreen() {
         )}
         {saveError ? <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">{saveError}</p> : null}
         {rewardRouteNeedsVerification ? <p className="rounded-xl bg-paper p-3 text-sm text-muted">Your free-ride reward is ready, but the road-distance service is unavailable. Kida will not apply or charge the free ride until the route can be verified.</p> : null}
-        <p className="text-xs text-muted">This records your booking request and fare estimate. Road distance is estimated from OpenStreetMap road data; live traffic, Captain matching, live tracking and payment are not connected yet.</p>
+        <p className="text-xs text-muted">Your ride request is sent to eligible online Kida Captains. Captain matching and status updates are connected; payment collection and final fare settlement are not active in this build.</p>
       </div>
     </div>
   );
@@ -419,16 +417,25 @@ function Stop({ label, title, line }: { label: string; title: string; line: stri
 export function AssigningScreen() {
   const copy = useCopy();
   const assign = useRaah((s) => s.assignDriver);
+  const activeRideId = useRaah((s) => s.activeRideId);
+  const ride = useRaah((s) => s.rides.find((item) => item.id === activeRideId));
+  const isBackendRide = Boolean(ride?.backendBookingId);
   useEffect(() => {
+    if (isBackendRide) return;
     const id = window.setTimeout(() => assign(), 1400);
     return () => window.clearTimeout(id);
-  }, [assign]);
+  }, [assign, isBackendRide]);
   return (
     <div className="grid min-h-[60vh] place-items-center px-6 text-center">
       <div>
         <div className="mx-auto size-16 rounded-full bg-primary-soft puck" />
-        <h1 className="mt-6 font-display text-3xl">{copy("searching")}</h1>
-        <p className="mt-2 text-sm text-muted">{copy("simDriver")}</p>
+        <h1 className="mt-6 font-display text-3xl">{isBackendRide ? "Finding your Captain" : copy("searching")}</h1>
+        <p className="mt-2 text-sm text-muted">
+          {isBackendRide
+            ? "Your request is visible to eligible online Captains. This screen updates when a Captain accepts."
+            : copy("simDriver")}
+        </p>
+        {isBackendRide ? <p className="mt-4 text-xs text-muted">Keep Kida open. Please do not travel to the pickup until your Captain is confirmed.</p> : null}
       </div>
     </div>
   );
