@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createMyBooking } from "@/lib/kida/server";
+import { setMyBookingTripPin } from "@/lib/kida/captain-server";
 import { GROK_PROVIDERS, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getPlace } from "@/lib/raah/places";
@@ -292,6 +293,7 @@ export function ConfirmScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const requestId = useRef<string | null>(null);
+  const tripPinRef = useRef<string | null>(null);
   if (!drop || !place || !trip) return null;
   const bookingTrip = trip;
   const rewardProgress = getCustomerRewardProgress(rides);
@@ -337,11 +339,18 @@ export function ConfirmScreen() {
       if (rewardApplied && !result.is_free_ride) {
         throw new Error("Your sixth-ride reward could not be reserved. Refresh your rides and try again.");
       }
+      tripPinRef.current ??= String(1000 + Math.floor(Math.random() * 9000));
+      await setMyBookingTripPin({
+        data: { bookingId: result.id, tripPin: tripPinRef.current },
+      });
+      const tripPin = tripPinRef.current;
       requestId.current = null;
+      tripPinRef.current = null;
       confirm(bookingTrip.route?.distanceKm, bookingTrip.route?.durationMinutes, bookingTrip.route?.path, {
         id: result.id,
         status: "requested",
         isFreeRide: result.is_free_ride,
+        tripPin,
       });
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Your booking could not be saved. Please retry.");
@@ -400,7 +409,7 @@ export function ConfirmScreen() {
         )}
         {saveError ? <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">{saveError}</p> : null}
         {rewardRouteNeedsVerification ? <p className="rounded-xl bg-paper p-3 text-sm text-muted">Your free-ride reward is ready, but the road-distance service is unavailable. Kida will not apply or charge the free ride until the route can be verified.</p> : null}
-        <p className="text-xs text-muted">This records your booking request and fare estimate. Road distance is estimated from OpenStreetMap road data; live traffic, Captain matching, live tracking and payment are not connected yet.</p>
+        <p className="text-xs text-muted">Your ride request is sent to eligible online Kida Captains. Captain matching and status updates are connected; payment collection and final fare settlement are not active in this build.</p>
       </div>
     </div>
   );
