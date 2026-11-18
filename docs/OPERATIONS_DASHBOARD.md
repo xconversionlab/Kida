@@ -65,6 +65,14 @@ The audit table records the reviewer, previous and new status, note, six documen
 
 Rejection and change requests update the application and append an audit row but do not grant the Captain role or create an approved profile. Applicants can revise and resubmit applications marked rejected or needs_changes.
 
+## Shared Customer and Captain trips
+
+The Operations live-trips section reads the same `public.kida_bookings` rows used by the Customer and Captain apps. It shows active trips and recent terminal statuses, including the customer, pickup and destination, assigned Captain, vehicle registration, fare preview and latest Captain GPS fix when it is no older than 90 seconds. The view refreshes automatically every eight seconds.
+
+Operations trip visibility is read-only. Customer booking creation, Captain acceptance and trip-state transitions remain owned by their respective authenticated server functions. The dashboard never exposes the customer trip PIN and does not move money or override the Captain eligibility gate.
+
+The Customer app's local demo OTP is a UI-only preview sign-in; it does not create a Better Auth backend session. Saving a live booking requires a real signed-in Kida account. The public `/operations/demo` page is sample-only and is not connected to live customer or Captain records.
+
 ## Wallet and online eligibility
 
 The dashboard displays each Captain's wallet balance, the company-required opening balance, suspension status and the result of public.kida_captain_can_accept_rides(user_id).
