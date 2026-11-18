@@ -69,6 +69,10 @@ export function AccountScreen() {
             </button>
           ))}
         </div>
+        <a href="/captain" className="mt-3 flex min-h-12 items-center justify-between rounded-2xl border border-primary/30 bg-primary-soft px-3 text-sm font-semibold text-ink">
+          Become a Kida Captain
+          <ChevronRight className="size-4" />
+        </a>
         <Btn variant="line" className="mt-4 w-full" disabled={signingOut} onClick={() => void handleLogout()}>
           {signingOut ? "Signing out…" : copy("logout")}
         </Btn>
