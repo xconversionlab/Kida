@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS public.kida_captain_applications (
   user_id text NOT NULL UNIQUE REFERENCES public."user" ("id") ON DELETE RESTRICT,
   full_name text NOT NULL CHECK (char_length(full_name) BETWEEN 2 AND 100),
   phone_e164 text NOT NULL CHECK (phone_e164 ~ '^\+[1-9][0-9]{7,14}$'),
-  vehicle_id text NOT NULL CHECK (vehicle_id IN ('bike','auto','mini','xl')),
+  vehicle_id text NOT NULL CHECK (vehicle_id IN ('bike','auto','mini','sedan','xl')),
   registration_number text NOT NULL CHECK (char_length(registration_number) BETWEEN 5 AND 20),
   vehicle_make_model text NOT NULL CHECK (char_length(vehicle_make_model) BETWEEN 2 AND 100),
   vehicle_colour text NOT NULL CHECK (char_length(vehicle_colour) BETWEEN 2 AND 40),
@@ -39,7 +39,7 @@ CREATE INDEX IF NOT EXISTS kida_captain_applications_status_idx
 
 CREATE TABLE IF NOT EXISTS public.kida_captain_profiles (
   captain_user_id text PRIMARY KEY REFERENCES public."user" ("id") ON DELETE RESTRICT,
-  vehicle_id text NOT NULL CHECK (vehicle_id IN ('bike','auto','mini','xl')),
+  vehicle_id text NOT NULL CHECK (vehicle_id IN ('bike','auto','mini','sedan','xl')),
   registration_number text NOT NULL UNIQUE,
   vehicle_make_model text NOT NULL,
   vehicle_colour text NOT NULL,
