@@ -47,7 +47,7 @@ const baseURL = explicitBaseURL ?? {
 
 const trustedOrigins = [
   ...(explicitBaseURL ? [explicitBaseURL] : []),
-  ...deploymentHosts.map((host) => \`https://\${host}\`),
+  ...deploymentHosts.map((host) => `https://${host}`),
   "https://*.vercel.app",
   ...localOrigins,
 ];
