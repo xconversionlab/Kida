@@ -5,7 +5,7 @@ import { getSql } from "@/lib/db";
 import { canTransitionBooking, type BookingStatus } from "./booking-state";
 import { createTripPinCredentials, decryptTripPin, matchesTripPin } from "./trip-pin";
 
-const vehicleSchema = z.enum(["bike", "auto", "mini", "xl"]);
+const vehicleSchema = z.enum(["bike", "auto", "mini", "sedan", "xl"]);
 
 function captainMatchRadiusKm(): number {
   const configured = Number(process.env.KIDA_CAPTAIN_MATCH_RADIUS_KM ?? "20");
