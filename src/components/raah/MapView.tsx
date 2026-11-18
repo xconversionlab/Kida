@@ -229,6 +229,29 @@ export function MapView({
     routePath?.map((point) => `${point.lat},${point.lng}`).join(";"),
   ]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    const L = window.L;
+    if (!mapReady || !map || !L) return;
+    if (!captainLocation) {
+      captainMarkerRef.current?.remove();
+      captainMarkerRef.current = null;
+      return;
+    }
+    const location: Coordinate = [captainLocation.lat, captainLocation.lng];
+    if (captainMarkerRef.current) {
+      captainMarkerRef.current.setLatLng(location);
+    } else {
+      captainMarkerRef.current = L.circleMarker(location, {
+        radius: 10,
+        color: "#ffffff",
+        weight: 3,
+        fillColor: "#16784B",
+        fillOpacity: 1,
+      }).addTo(map);
+    }
+  }, [mapReady, captainLocation?.lat, captainLocation?.lng]);
+
   function toggleGps() {
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
