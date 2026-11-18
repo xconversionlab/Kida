@@ -8,6 +8,9 @@ test("Kida V1 migrations create scoped customer records and booking audit rows",
   const kidaSql = await readFile(new URL("../migrations/0002_kida_core.sql", import.meta.url), "utf8");
   const preferencesSql = await readFile(new URL("../migrations/0003_customer_booking_preferences.sql", import.meta.url), "utf8");
   const commercialSql = await readFile(new URL("../migrations/0004_client_commercial_rules.sql", import.meta.url), "utf8");
+  const captainSql = await readFile(new URL("../migrations/0005_captain_app.sql", import.meta.url), "utf8");
+  const captainCompatSql = await readFile(new URL("../migrations/0006_captain_schema_compat.sql", import.meta.url), "utf8");
+  const operationsReviewsSql = await readFile(new URL("../migrations/0007_captain_application_reviews.sql", import.meta.url), "utf8");
   const db = new PGlite();
 
   try {
@@ -15,6 +18,13 @@ test("Kida V1 migrations create scoped customer records and booking audit rows",
     await db.exec(kidaSql);
     await db.exec(preferencesSql);
     await db.exec(commercialSql);
+    await db.exec(captainSql);
+    await db.exec(captainCompatSql);
+    await db.exec(operationsReviewsSql);
+    assert.deepEqual(
+      (await db.query("select to_regclass('public.kida_captain_application_reviews')::text as table_name")).rows,
+      [{ table_name: "kida_captain_application_reviews" }],
+    );
 
     await db.query(
       `insert into public."user" ("id", "name", "email", "emailVerified")
@@ -91,6 +101,63 @@ test("Kida V1 migrations create scoped customer records and booking audit rows",
       "insert into public.kida_user_roles (user_id, role) values ($1, 'captain')",
       ["captain-1"],
     );
+
+    await db.query(
+      `insert into public."user" ("id", "name", "email", "emailVerified")
+       values ($1, $2, $3, false)`,
+      ["operations-1", "Kida Operations", "operations@example.test"],
+    );
+    const application = await db.query(
+      `insert into public.kida_captain_applications
+         (user_id, full_name, phone_e164, vehicle_id, registration_number,
+          vehicle_make_model, vehicle_colour, service_city,
+          confirms_valid_driving_licence, confirms_commercial_permit, confirms_valid_insurance)
+       values ($1, $2, $3, 'auto', 'TN01AA0001', 'Test Auto', 'yellow', 'Coimbatore', true, true, true)
+       returning id::text as id`,
+      ["captain-1", "Kida Captain", "+919999999998"],
+    );
+    const applicationId = application.rows[0].id;
+    await assert.rejects(
+      db.query(
+        `insert into public.kida_captain_application_reviews
+           (application_id, applicant_user_id, reviewed_by, previous_status,
+            new_status, reviewer_note, document_checks)
+         values ($1::uuid, 'captain-1', 'operations-1', 'pending_review',
+                 'approved', 'Incomplete checks', '{"identity":true}'::jsonb)`,
+        [applicationId],
+      ),
+      /kida_captain_application_review_approval_checks/,
+    );
+    await db.query(
+      `update public.kida_captain_applications
+          set status = 'approved', reviewed_by = 'operations-1', reviewed_at = now()
+        where id = $1::uuid`,
+      [applicationId],
+    );
+    await db.query(
+      `insert into public.kida_captain_application_reviews
+         (application_id, applicant_user_id, reviewed_by, previous_status,
+          new_status, reviewer_note, document_checks)
+       values ($1::uuid, 'captain-1', 'operations-1', 'pending_review',
+               'approved', 'Original documents checked',
+               '{"identity":true,"drivingLicence":true,"commercialPermit":true,"insurance":true,"fitnessPuc":true,"vehicleRegistration":true}'::jsonb)`,
+      [applicationId],
+    );
+    assert.deepEqual(
+      (await db.query(
+        "select new_status, reviewer_note from public.kida_captain_application_reviews where application_id = $1::uuid",
+        [applicationId],
+      )).rows,
+      [{ new_status: "approved", reviewer_note: "Original documents checked" }],
+    );
+    await assert.rejects(
+      db.query(
+        "update public.kida_captain_application_reviews set reviewer_note = 'changed' where application_id = $1::uuid",
+        [applicationId],
+      ),
+      /append-only/,
+    );
+
     await db.query(
       "insert into public.kida_captain_wallets (captain_user_id, opening_balance_paise, balance_paise) values ($1, 250000, 250000)",
       ["captain-1"],

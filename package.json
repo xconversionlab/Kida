@@ -15,7 +15,7 @@
     "preview:restart": "node scripts/preview.mjs restart",
     "preview:stop": "node scripts/preview.mjs stop",
     "typecheck": "tsc --noEmit",
-    "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/auth/sign-in-gate.test.ts src/lib/kida/booking-state.test.ts src/lib/kida/trip-pin.test.ts src/lib/raah/rewards.test.ts src/lib/kida/osrm-route.test.ts",
+    "test": "node --test 'scripts/**/*.test.mjs' && node --experimental-strip-types --test src/lib/auth/sign-in-gate.test.ts src/lib/kida/booking-state.test.ts src/lib/kida/trip-pin.test.ts src/lib/raah/rewards.test.ts src/lib/kida/osrm-route.test.ts src/lib/kida/operations-review.test.ts",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
