@@ -20,7 +20,7 @@ const SCRIPT = join(TEMPLATE_ROOT, "scripts/write-atomic.mjs");
 function makeWorkspace() {
   const root = mkdtempSync(join(tmpdir(), "write-atomic-"));
   mkdirSync(join(root, "public"), { recursive: true });
-  mkdirSync(join(root, ".grok"), { recursive: true });
+  mkdirSync(join(root, ".kida"), { recursive: true });
   return root;
 }
 
