@@ -304,6 +304,7 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
     );
     const wallet = walletRows[0] ?? null;
     const canAcceptRides = Boolean(wallet?.can_accept_rides);
+    const matchRadiusKm = captainMatchRadiusKm();
 
     const availableBookings = canAcceptRides && profile.is_online
       ? await sql.query<BookingCardRow>(
@@ -426,6 +427,7 @@ export const acceptCaptainBooking = createServerFn({ method: "POST" })
     const sql = await getSql();
     const captain = await requireCaptain(sql, context.userId);
     if (!captain.is_online) throw new Error("Go online before accepting a trip.");
+    const matchRadiusKm = captainMatchRadiusKm();
     const rows = await sql.query<{
       id: string;
       from_status: BookingStatus;
@@ -485,9 +487,9 @@ export const acceptCaptainBooking = createServerFn({ method: "POST" })
          returning booking_id
        )
        select id::text as id, from_status, to_status from changed`,
-      [data.bookingId, context.userId],
+      [data.bookingId, context.userId, matchRadiusKm],
     );
-    if (!rows[0]) throw new Error("This request is no longer available, does not match your vehicle, or your Captain account is not eligible.");
+    if (!rows[0]) throw new Error("This request is no longer available, outside your matching area, does not match your vehicle, or your Captain account is not eligible.");
     return rows[0];
   });
 
