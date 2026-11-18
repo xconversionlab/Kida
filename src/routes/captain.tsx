@@ -16,7 +16,7 @@ import type { Selection } from "@/lib/raah/types";
 export const Route = createFileRoute("/captain")({ component: CaptainApp });
 
 type Portal = Awaited<ReturnType<typeof getMyCaptainPortal>>;
-type VehicleChoice = "bike" | "auto" | "mini" | "xl";
+type VehicleChoice = "bike" | "auto" | "mini" | "sedan" | "xl";
 type ApplicationForm = {
   fullName: string;
   phone: string;
@@ -47,6 +47,7 @@ const VEHICLES: { id: VehicleChoice; label: string }[] = [
   { id: "bike", label: "E-Bike" },
   { id: "auto", label: "Auto" },
   { id: "mini", label: "Mini cab" },
+  { id: "sedan", label: "Sedan cab" },
   { id: "xl", label: "7-seater cab" },
 ];
 
