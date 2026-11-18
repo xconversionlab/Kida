@@ -96,7 +96,7 @@ export function MapView({
   const dropLayerRef = useRef<LeafletLayer | null>(null);
   const stopLayersRef = useRef<LeafletLayer[]>([]);
   const routeLayerRef = useRef<LeafletLayer | null>(null);
-  const userMarkerRef = useRef<LeafletMarker | null>(null);
+  const userMarkerRef = useRef<LeafletMarker | null>(null);\n  const captainMarkerRef = useRef<LeafletMarker | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState("");
