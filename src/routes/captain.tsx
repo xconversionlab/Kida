@@ -547,7 +547,7 @@ function CaptainApp() {
   );
 }
 
-function PageShell({ children }: { children: React.ReactNode }) {
+function PageShell({ children }: { children: ReactNode }) {
   return (
     <main className="min-h-dvh bg-[#f5f4ef] px-4 py-6 text-neutral-950">
       <div className="mx-auto flex w-full max-w-xl flex-col gap-4">
@@ -561,10 +561,10 @@ function PageShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function TopLabel({ children }: { children: React.ReactNode }) {
+function TopLabel({ children }: { children: ReactNode }) {
   return <p className="text-[11px] font-black uppercase tracking-[0.18em] text-neutral-500">{children}</p>;
 }
 
-function Alert({ children }: { children: React.ReactNode }) {
+function Alert({ children }: { children: ReactNode }) {
   return <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{children}</p>;
 }
