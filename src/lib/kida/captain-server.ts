@@ -6,6 +6,11 @@ import { getSql } from "@/lib/db";
 import { canTransitionBooking, type BookingStatus } from "./booking-state";
 
 const vehicleSchema = z.enum(["bike", "auto", "mini", "xl"]);
+
+function captainMatchRadiusKm(): number {
+  const configured = Number(process.env.KIDA_CAPTAIN_MATCH_RADIUS_KM ?? "20");
+  return Number.isFinite(configured) && configured >= 1 && configured <= 100 ? configured : 20;
+}
 const applicationSchema = z.object({
   fullName: z.string().trim().min(2).max(100),
   phoneE164: z.string().trim().regex(/^\+[1-9][0-9]{7,14}$/),
@@ -313,6 +318,18 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
               and b.captain_user_id is null
               and (b.scheduled_for is null or b.scheduled_for <= now() + interval '30 minutes')
               and (b.women_driver_requested = false or $3 = true)
+              and exists (
+                select 1
+                  from public.kida_captain_locations loc
+                 where loc.captain_user_id = $1
+                   and loc.updated_at >= now() - interval '90 seconds'
+                   and 6371 * 2 * asin(sqrt(least(1.0,
+                     power(sin(radians(((b.pickup->>'lat')::double precision - loc.latitude::double precision) / 2)), 2)
+                     + cos(radians(loc.latitude::double precision))
+                     * cos(radians((b.pickup->>'lat')::double precision))
+                     * power(sin(radians(((b.pickup->>'lng')::double precision - loc.longitude::double precision) / 2)), 2)
+                   ))) <= $4
+              )
               and not exists (
                 select 1 from public.kida_bookings active
                  where active.captain_user_id = $1
@@ -320,7 +337,7 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
               )
             order by b.scheduled_for asc nulls first, b.requested_at asc
             limit 30`,
-          [context.userId, profile.vehicle_id, profile.is_woman_captain],
+          [context.userId, profile.vehicle_id, profile.is_woman_captain, matchRadiusKm],
         )
       : [];
 
@@ -429,6 +446,18 @@ export const acceptCaptainBooking = createServerFn({ method: "POST" })
             and (b.scheduled_for is null or b.scheduled_for <= now() + interval '30 minutes')
             and (b.women_driver_requested = false or c.is_woman_captain = true)
             and public.kida_captain_can_accept_rides($2) = true
+            and exists (
+              select 1
+                from public.kida_captain_locations loc
+               where loc.captain_user_id = $2
+                 and loc.updated_at >= now() - interval '90 seconds'
+                 and 6371 * 2 * asin(sqrt(least(1.0,
+                   power(sin(radians(((b.pickup->>'lat')::double precision - loc.latitude::double precision) / 2)), 2)
+                   + cos(radians(loc.latitude::double precision))
+                   * cos(radians((b.pickup->>'lat')::double precision))
+                   * power(sin(radians(((b.pickup->>'lng')::double precision - loc.longitude::double precision) / 2)), 2)
+                 ))) <= $3
+            )
             and not exists (
               select 1 from public.kida_bookings active
                where active.captain_user_id = $2
