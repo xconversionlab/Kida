@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { signIn, authEnabled, GROK_PROVIDERS } from "@/lib/auth/client";
+import { EmailPasswordForm } from "@/components/auth/EmailPasswordForm";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import {
   acceptCaptainBooking,
@@ -323,15 +323,7 @@ function CaptainApp() {
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-neutral-500">Kida Captain</p>
           <h1 className="mt-2 text-3xl font-black">Sign in to drive with Kida</h1>
           <p className="mt-2 text-sm text-neutral-600">Use your own Kida account. Customer and Captain permissions are checked separately by the server.</p>
-          {authEnabled ? (
-            <div className="mt-5 grid gap-2">
-              {GROK_PROVIDERS.map((provider) => (
-                <Button key={provider.providerId} variant="dark" onClick={() => void signIn(provider.providerId, { callbackURL: "/captain" })}>
-                  Continue with {provider.label}
-                </Button>
-              ))}
-            </div>
-          ) : <p className="mt-5 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">Account authentication must be enabled before Captain registration.</p>}
+          <EmailPasswordForm callbackURL="/captain" />
         </Card>
       </PageShell>
     );

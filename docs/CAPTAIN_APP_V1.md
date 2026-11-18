@@ -19,7 +19,7 @@ Deliver a separate, mobile-first Captain workspace at `/captain`, connected to t
 
 ## Authentication and access
 
-The route uses the same Better Auth session as the customer app. The server reads the Captain's user ID from `authMiddleware`; it does not accept a user ID supplied by the browser.
+The customer and Captain apps use the same Kida-hosted Better Auth account with email/password sign-in and registration. The server reads the Captain's user ID from the verified session through `authMiddleware`; it does not accept a user ID supplied by the browser.
 
 The application form does not:
 - Assign the `captain` role.
@@ -27,23 +27,22 @@ The application form does not:
 - Verify driving licence, commercial permit, insurance, fitness / PUC or identity documents.
 - Mark a user as a woman Captain.
 
-Those steps require an authorised Kida operations review and direct database provisioning. The current authentication broker offers the configured Google / X sign-in. Phone OTP is not live yet.
+Those steps require an authorised Kida operations review and direct database provisioning. Phone OTP is not live yet.
 
 ## Provisioning workflow for Kida operations
 
-1. The applicant signs in to Kida and submits the application at `/captain`.
+1. The applicant creates or signs in to their Kida account and submits the application at `/captain`.
 2. Kida operations obtains and checks the actual licence, commercial vehicle registration and permit, insurance, fitness / PUC and identity/background information required for the operating jurisdiction.
 3. Operations verifies that the vehicle category is eligible in the intended city/state and that the applicant is permitted to drive it commercially.
 4. Only after verification, an authorised database operator approves the application, grants the `captain` role and creates the approved Captain profile.
 
-### Secure database operation
+## Secure database operation
 
 Run the following from a controlled database-owner session, never from a customer or Captain browser. Replace the bracketed placeholders with actual verified values. The applicant must have signed in at least once, so their user ID exists in Better Auth's `"user"` table.
 
 ```sql
 BEGIN;
 
--- First inspect the submitted application and the user identity.
 SELECT
   a.user_id,
   u.email,
@@ -59,7 +58,6 @@ FROM public.kida_captain_applications a
 JOIN public."user" u ON u."id" = a.user_id
 WHERE a.id = '[APPLICATION_UUID]';
 
--- After completing offline document and local legal checks:
 UPDATE public.kida_captain_applications
 SET status = 'approved',
     reviewer_note = 'Documents checked and approved by Kida operations',
@@ -100,17 +98,15 @@ COMMIT;
 
 The example intentionally does not set `is_woman_captain = true`. Set that flag only after the company's authorised verification process and a documented policy decision. Do not infer it from a name, photo or self-declaration.
 
-## Opening ledger requirement — currently a hard blocker
+## Opening ledger requirement
 
 The client has not provided the compulsory Captain opening balance amount. The database value `kida_platform_settings.driver_required_opening_balance_paise` remains NULL on purpose. The database function `kida_captain_can_accept_rides()` therefore returns false and the app keeps the Captain offline / unable to accept rides.
 
 Do not guess or populate the amount. Once the client approves the exact INR amount and ledger policy, operations must:
 - Set `driver_required_opening_balance_paise` to the approved amount in paise.
-- Create each Captain wallet with the actual received opening amount (not a notional credit).
+- Create each Captain wallet with the actual received opening amount.
 - Record the opening funds with a matching `opening_balance` ledger entry and receipt / reconciliation evidence.
 - Ensure the wallet balance meets the configured threshold before enabling online availability.
-
-The Captain screen will stay blocked until these conditions are met.
 
 ## Shared customer booking lifecycle
 
@@ -121,7 +117,7 @@ The Captain screen will stay blocked until these conditions are met.
 - Captain trip status changes are checked in SQL against the allowed lifecycle and recorded in `kida_booking_events`.
 - The server compares the entered trip PIN before allowing `in_progress`.
 - Only the booking's customer can read its assigned Captain details and fresh location. The location query returns only a recent fix (last 90 seconds).
-- The customer app polls account bookings while a ride is active and displays the assigned Captain and latest location on the OpenStreetMap map.
+- The customer app polls account bookings while a ride is active and displays the assigned Captain and latest location.
 
 ## Current integration boundaries
 
@@ -132,7 +128,7 @@ Not connected in V1:
 - Push notifications or realtime socket delivery (the apps poll the shared API).
 - Masked calls, in-app chat delivery or customer phone-number disclosure.
 - Payment gateway, cash reconciliation, Captain payouts, platform commission deduction or wallet top-up.
-- Automated ₹200 daily bonus award after 15 completed eligible Auto / cab trips.
+- Automated daily bonus award after eligible trips.
 - Background GPS after the app is terminated, trip replay or a guaranteed tracking SLA.
 - Captain cancellation / operations re-dispatch workflow.
 - Trip fare repricing. Customer fare values remain client previews until a server-side fare service exists.
@@ -141,16 +137,18 @@ The Captain app must not claim that a trip has been paid, settled or reconciled.
 
 ## Environment and deployment
 
-Required for stable trip-PIN encryption:
-- Set a strong server-only `KIDA_TRIP_PIN_SECRET` in both Preview and Production.
-- Keep the same secret stable across serverless instances and deployments while bookings are active.
-- Never expose it using a `VITE_*` environment variable.
-- If it is rotated, old encrypted PINs will no longer decrypt and existing PIN-based trips may be unable to start. Plan a controlled rotation.
+Required for stable account and trip security:
+- Set a strong server-only `BETTER_AUTH_SECRET` and `KIDA_TRIP_PIN_SECRET` in Preview and Production.
+- Keep both secrets stable across serverless instances and deployments while sessions and bookings are active.
+- Never expose them using a `VITE_*` environment variable.
+- If `KIDA_TRIP_PIN_SECRET` is rotated, old encrypted PINs will no longer decrypt and existing PIN-based trips may be unable to start. Plan a controlled rotation.
 
-The application uses the existing `DATABASE_URL`, Better Auth and Vercel deployment. Do not create a new database for Captains.
+The application uses the existing `DATABASE_URL`, Kida-hosted Better Auth and Vercel deployment. Do not create a new database for Captains.
 
 ## Verification checklist
 
+- A user can create a Kida account and sign in using email and password.
+- Customer and Captain apps recognise the same account session.
 - Applicant can submit an application but cannot self-approve.
 - A user without the Captain role cannot view customer request data or call Captain trip APIs.
 - A Captain without an approved profile cannot go online.

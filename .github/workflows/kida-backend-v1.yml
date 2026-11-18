@@ -12,7 +12,7 @@ on:
       - "scripts/**"
       - "package.json"
       - "package-lock.json"
-      - ".grok/app-env.json"
+      - "AGENTS.md"
       - ".github/workflows/kida-backend-v1.yml"
   pull_request:
     branches:
@@ -25,7 +25,7 @@ on:
       - "scripts/**"
       - "package.json"
       - "package-lock.json"
-      - ".grok/app-env.json"
+      - "AGENTS.md"
       - ".github/workflows/kida-backend-v1.yml"
 
 permissions:
