@@ -344,6 +344,15 @@ export const useRaah = create<RaahState>()(
       },
       setPhoto: (photo) => set({ photo }),
       setPlaceTarget: (placeTarget) => set({ placeTarget }),
+      beginTripChange: (bookingId, changeType) => {
+        set({
+          tripChangeContext: { bookingId, changeType },
+          tripChangeSelection: null,
+          placeTarget: changeType === "add_stop" ? "stop" : "drop",
+        });
+        get().open("pickup");
+      },
+      clearTripChangeSelection: () => set({ tripChangeSelection: null, tripChangeContext: null }),
       setPickupLocation: (pickup) => set({ pickup }),
       setServiceMode: (serviceMode) => set({ serviceMode, drop: serviceMode === "ride" ? get().drop : null, stops: serviceMode === "ride" ? get().stops : [] }),
       choose: (selection) => {
