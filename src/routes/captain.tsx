@@ -26,6 +26,13 @@ type ApplicationForm = {
   vehicleMakeModel: string;
   vehicleColour: string;
   serviceCity: string;
+  photoUrl: string;
+  licenceIdentifier: string;
+  licenceExpiresOn: string;
+  commercialPermitExpiresOn: string;
+  insuranceExpiresOn: string;
+  fitnessExpiresOn: string;
+  pucExpiresOn: string;
   drivingLicence: boolean;
   commercialPermit: boolean;
   insurance: boolean;
@@ -39,6 +46,13 @@ const initialForm: ApplicationForm = {
   vehicleMakeModel: "",
   vehicleColour: "",
   serviceCity: "",
+  photoUrl: "",
+  licenceIdentifier: "",
+  licenceExpiresOn: "",
+  commercialPermitExpiresOn: "",
+  insuranceExpiresOn: "",
+  fitnessExpiresOn: "",
+  pucExpiresOn: "",
   drivingLicence: false,
   commercialPermit: false,
   insurance: false,
@@ -248,6 +262,13 @@ function CaptainApp() {
           vehicleMakeModel: form.vehicleMakeModel.trim(),
           vehicleColour: form.vehicleColour.trim(),
           serviceCity: form.serviceCity.trim(),
+          photoUrl: form.photoUrl.trim(),
+          licenceIdentifier: form.licenceIdentifier.trim(),
+          licenceExpiresOn: form.licenceExpiresOn,
+          commercialPermitExpiresOn: form.commercialPermitExpiresOn,
+          insuranceExpiresOn: form.insuranceExpiresOn,
+          fitnessExpiresOn: form.fitnessExpiresOn || null,
+          pucExpiresOn: form.pucExpiresOn || null,
           confirmsValidDrivingLicence: form.drivingLicence,
           confirmsCommercialPermit: form.commercialPermit,
           confirmsValidInsurance: form.insurance,
@@ -399,6 +420,17 @@ function CaptainApp() {
             <Field label="Vehicle make and model" value={form.vehicleMakeModel} onChange={(value) => setForm((s) => ({ ...s, vehicleMakeModel: value }))} placeholder="e.g. vehicle make and model" />
             <Field label="Vehicle colour" value={form.vehicleColour} onChange={(value) => setForm((s) => ({ ...s, vehicleColour: value }))} placeholder="e.g. white" />
             <Field label="Operating city" value={form.serviceCity} onChange={(value) => setForm((s) => ({ ...s, serviceCity: value }))} placeholder="e.g. Coimbatore" />
+            <Field label="Captain photograph URL (secure HTTPS hosted image)" value={form.photoUrl} onChange={(value) => setForm((s) => ({ ...s, photoUrl: value }))} type="url" placeholder="https://…/captain-photo.jpg" />
+            <p className="-mt-3 text-xs text-neutral-500">Use a secure hosted image link. Direct photo uploads require Kida to connect an approved storage provider.</p>
+            <Field label="Driving licence ID / ULIN" value={form.licenceIdentifier} onChange={(value) => setForm((s) => ({ ...s, licenceIdentifier: value }))} placeholder="As printed on the licence" />
+            <p className="-mt-3 text-xs text-neutral-500">The client must confirm the exact ULIN issuing authority and format.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Driving licence expiry" value={form.licenceExpiresOn} onChange={(value) => setForm((s) => ({ ...s, licenceExpiresOn: value }))} type="date" />
+              <Field label="Commercial permit expiry" value={form.commercialPermitExpiresOn} onChange={(value) => setForm((s) => ({ ...s, commercialPermitExpiresOn: value }))} type="date" />
+              <Field label="Insurance expiry" value={form.insuranceExpiresOn} onChange={(value) => setForm((s) => ({ ...s, insuranceExpiresOn: value }))} type="date" />
+              <Field label="Fitness certificate expiry (if applicable)" value={form.fitnessExpiresOn} onChange={(value) => setForm((s) => ({ ...s, fitnessExpiresOn: value }))} type="date" required={false} />
+              <Field label="PUC expiry (if applicable)" value={form.pucExpiresOn} onChange={(value) => setForm((s) => ({ ...s, pucExpiresOn: value }))} type="date" required={false} />
+            </div>
             <div className="rounded-2xl border border-neutral-200 p-3">
               <p className="text-sm font-bold">Required declarations</p>
               <p className="mt-1 text-xs text-neutral-500">You must hold all applicable valid documents. Kida operations will inspect and verify them before approval.</p>
@@ -414,7 +446,7 @@ function CaptainApp() {
                 </label>
               ))}
             </div>
-            <Button type="submit" disabled={submitting || !form.drivingLicence || !form.commercialPermit || !form.insurance} variant="yellow">
+            <Button type="submit" disabled={submitting || !form.drivingLicence || !form.commercialPermit || !form.insurance || !form.photoUrl.startsWith("https://") || form.licenceIdentifier.trim().length < 4 || !form.licenceExpiresOn || !form.commercialPermitExpiresOn || !form.insuranceExpiresOn} variant="yellow">
               {submitting ? "Submitting…" : translate("submit")}
             </Button>
           </form>
