@@ -26,20 +26,21 @@ export function CampaignManager() {
   const [end,setEnd] = useState("");
   const [minimumFare,setMinimumFare] = useState("");
   const [rewardType,setRewardType] = useState<"fixed_discount"|"percentage_discount"|"free_ride_cap">("fixed_discount");
-  const [rewardValue,setRewardValue] = useState("10");
+  const [rewardValue,setRewardValue] = useState("");
   const [cap,setCap] = useState("");
-  const [vehicles,setVehicles] = useState<string[]>(["bike","auto","mini","xl"]);
+  const [vehicles,setVehicles] = useState<string[]>([]);
   const [frequency,setFrequency] = useState<"every_n"|"probability">("every_n");
-  const [everyN,setEveryN] = useState("15");
-  const [probability,setProbability] = useState("5");
+  const [everyN,setEveryN] = useState("");
+  const [probability,setProbability] = useState("");
   const [dailyBudget,setDailyBudget] = useState("");
   const [weeklyBudget,setWeeklyBudget] = useState("");
-  const [maxUses,setMaxUses] = useState("1");
+  const [maxUses,setMaxUses] = useState("");
   const [firstRide,setFirstRide] = useState(false);
   const [secondRide,setSecondRide] = useState(false);
   const [officeStart,setOfficeStart] = useState("");
   const [officeEnd,setOfficeEnd] = useState("");
   const [officeArea,setOfficeArea] = useState("");
+  const [clientApproved,setClientApproved] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true); setError("");
@@ -80,9 +81,10 @@ export function CampaignManager() {
         officeStartTime:officeStart || null,
         officeEndTime:officeEnd || null,
         officeAreaLabel:officeArea.trim() || null,
+        clientApproved,
       }});
       setNotice("Campaign saved as a draft. Review client-approved terms before activating.");
-      setName(""); setDescription(""); setStart(""); setEnd(""); setMinimumFare(""); setCap(""); setDailyBudget(""); setWeeklyBudget("");
+      setName(""); setDescription(""); setStart(""); setEnd(""); setMinimumFare(""); setRewardValue(""); setCap(""); setEveryN(""); setProbability(""); setMaxUses(""); setDailyBudget(""); setWeeklyBudget(""); setClientApproved(false);
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Campaign could not be saved.");
@@ -140,17 +142,21 @@ export function CampaignManager() {
         <div className="grid gap-2 text-xs font-bold"><span>Eligible vehicles</span><div className="flex flex-wrap gap-3">{["bike","auto","mini","sedan","xl"].map(id=><label key={id} className="flex items-center gap-1"><input type="checkbox" checked={vehicles.includes(id)} onChange={()=>toggleVehicle(id)}/>{id.toUpperCase()}</label>)}</div></div>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={firstRide} onChange={e=>{setFirstRide(e.target.checked);if(e.target.checked)setSecondRide(false)}}/>First completed ride only</label>
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={secondRide} onChange={e=>{setSecondRide(e.target.checked);if(e.target.checked)setFirstRide(false)}}/>Second completed ride only</label>
+        <label className="md:col-span-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+          <input type="checkbox" checked={clientApproved} onChange={e=>setClientApproved(e.target.checked)} className="mt-1"/>
+          <span><b>Client approval confirmed.</b> I confirm the client has explicitly approved these exact monetary amounts, frequency, eligible audience and campaign period. Example figures from the WhatsApp message are not approval.</span>
+        </label>
         <label className="grid gap-1 text-xs font-bold">Office offer start<input type="time" className={field} value={officeStart} onChange={e=>setOfficeStart(e.target.value)}/></label>
         <label className="grid gap-1 text-xs font-bold">Office offer end<input type="time" className={field} value={officeEnd} onChange={e=>setOfficeEnd(e.target.value)}/></label>
         <label className="grid gap-1 text-xs font-bold md:col-span-2">Office pickup/drop area label (geofence integration pending)<input className={field} value={officeArea} onChange={e=>setOfficeArea(e.target.value)} placeholder="Approved office or campus name"/></label>
-        <div className="md:col-span-2"><button type="submit" disabled={saving || vehicles.length===0} className="h-11 rounded-xl bg-neutral-950 px-5 text-sm font-bold text-white disabled:opacity-40">{saving?"Saving…":"Save campaign as draft"}</button></div>
+        <div className="md:col-span-2"><button type="submit" disabled={saving || vehicles.length===0 || !clientApproved || !rewardValue || !maxUses || (frequency==="every_n" ? !everyN : !probability)} className="h-11 rounded-xl bg-neutral-950 px-5 text-sm font-bold text-white disabled:opacity-40">{saving?"Saving…":"Save client-approved campaign draft"}</button></div>
       </form>
 
       <div className="space-y-2">
         <h3 className="font-black">Configured campaigns</h3>
         {campaigns.length===0 ? <p className="rounded-xl bg-neutral-50 p-4 text-sm text-neutral-500">No campaigns yet. Create a draft above.</p> : campaigns.map(c=>(
           <article key={c.id} className="grid gap-3 rounded-2xl border border-neutral-200 p-3 sm:grid-cols-[1fr_auto]">
-            <div><div className="flex flex-wrap items-center gap-2"><b>{c.name}</b><span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-bold uppercase">{c.status}</span></div>
+            <div><div className="flex flex-wrap items-center gap-2"><b>{c.name}</b><span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-bold uppercase">{c.status}</span><span className={"rounded-full px-2 py-1 text-xs font-bold " + (c.client_approved ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900")}>{c.client_approved ? "Client approved" : "Approval pending"}</span></div>
               <p className="mt-1 text-xs text-neutral-500">{c.reward_type} · {c.frequency_mode==="every_n"?"Every "+c.frequency_n+" completed rides":(Number(c.probability_bps??0)/100).toFixed(2)+"% chance"} · min fare {money(c.minimum_fare_paise)} · cap {money(c.maximum_discount_paise)}</p>
               <p className="text-xs text-neutral-500">Today: {c.redemptions_today} redemptions · spend {money(c.spend_today_paise)} / budget {money(c.daily_budget_paise)} · week spend {money(c.spend_week_paise)} / {money(c.weekly_budget_paise)}</p>
             </div>
