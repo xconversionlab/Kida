@@ -269,6 +269,7 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
         availableBookings: [] as BookingCardRow[],
         activeBooking: null as (BookingCardRow & { customer_name: string | null }) | null,
         completedToday: 0,
+        captainRating: { average_rating: null as string | null, rating_count: 0 },
       };
     }
 
@@ -367,6 +368,13 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
         limit 1`,
       [context.userId],
     );
+    const ratingRows = await sql.query<{ average_rating: string | null; rating_count: number }>(`
+      select round(avg(rating)::numeric,1)::text as average_rating,
+             count(*)::int as rating_count
+        from public.kida_captain_ratings
+       where captain_user_id=$1
+    `, [context.userId]);
+
     const statsRows = await sql.query<{ completed_today: number }>(
       `select count(*)::int as completed_today
          from public.kida_bookings
@@ -385,6 +393,7 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
       availableBookings,
       activeBooking: activeRows[0] ?? null,
       completedToday: statsRows[0]?.completed_today ?? 0,
+      captainRating: ratingRows[0] ?? { average_rating: null, rating_count: 0 },
     };
   });
 
