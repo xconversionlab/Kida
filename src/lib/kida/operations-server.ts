@@ -14,6 +14,7 @@ const documentChecksSchema = z.object({
   insurance: z.boolean(),
   fitnessPuc: z.boolean(),
   vehicleRegistration: z.boolean(),
+  captainPhoto: z.boolean(),
 }).strict();
 
 const reviewSchema = z.object({
@@ -75,6 +76,13 @@ type OperationsApplication = {
   confirms_valid_driving_licence: boolean;
   confirms_commercial_permit: boolean;
   confirms_valid_insurance: boolean;
+  photo_url: string;
+  licence_identifier: string;
+  licence_expires_on: string;
+  commercial_permit_expires_on: string;
+  insurance_expires_on: string;
+  fitness_expires_on: string | null;
+  puc_expires_on: string | null;
   status: ApplicationStatus;
   reviewer_note: string | null;
   submitted_at: string;
@@ -134,7 +142,12 @@ export const getOperationsDashboard = createServerFn({ method: "GET" })
         " a.vehicle_id, a.registration_number, a.vehicle_make_model,",
         " a.vehicle_colour, a.service_city,",
         " a.confirms_valid_driving_licence, a.confirms_commercial_permit,",
-        " a.confirms_valid_insurance, a.status, a.reviewer_note,",
+        " a.confirms_valid_insurance, a.photo_url, a.licence_identifier,",
+        " a.licence_expires_on::text as licence_expires_on,",
+        " a.commercial_permit_expires_on::text as commercial_permit_expires_on,",
+        " a.insurance_expires_on::text as insurance_expires_on,",
+        " a.fitness_expires_on::text as fitness_expires_on, a.puc_expires_on::text as puc_expires_on,",
+        " a.status, a.reviewer_note,",
         " a.submitted_at::text as submitted_at, a.reviewed_at::text as reviewed_at,",
         ' reviewer."name" as reviewed_by_name,',
         " c.approval_status as profile_approval_status, c.is_online,",
@@ -253,7 +266,8 @@ export const reviewCaptainApplication = createServerFn({ method: "POST" })
     const rows = await sql.query<{ id: string; status: ApplicationStatus }>(
       [
         "with target as materialized (",
-        "  select id, user_id, vehicle_id, registration_number, vehicle_make_model, vehicle_colour, service_city, status",
+        "  select id, user_id, vehicle_id, registration_number, vehicle_make_model, vehicle_colour, service_city,",
+        "         photo_url, licence_identifier, licence_expires_on, commercial_permit_expires_on, insurance_expires_on, fitness_expires_on, puc_expires_on, status",
         "    from public.kida_captain_applications",
         "   where id = $1::uuid and status in ('pending_review','needs_changes')",
         "   for update",
@@ -269,13 +283,19 @@ export const reviewCaptainApplication = createServerFn({ method: "POST" })
         "  returning user_id",
         "), approved_profile as (",
         "  insert into public.kida_captain_profiles",
-        "    (captain_user_id, vehicle_id, registration_number, vehicle_make_model, vehicle_colour, service_city, approval_status, is_online, approved_by, approved_at)",
-        "  select t.user_id, t.vehicle_id, t.registration_number, t.vehicle_make_model, t.vehicle_colour, t.service_city, 'approved', false, $4, now()",
+        "    (captain_user_id, vehicle_id, registration_number, vehicle_make_model, vehicle_colour, service_city, approval_status, is_online, approved_by, approved_at,",
+        "     profile_photo_url, licence_identifier, licence_expires_on, commercial_permit_expires_on, insurance_expires_on, fitness_expires_on, puc_expires_on, photo_verified_at, documents_verified_at)",
+        "  select t.user_id, t.vehicle_id, t.registration_number, t.vehicle_make_model, t.vehicle_colour, t.service_city, 'approved', false, $4, now(),",
+        "         t.photo_url, t.licence_identifier, t.licence_expires_on, t.commercial_permit_expires_on, t.insurance_expires_on, t.fitness_expires_on, t.puc_expires_on, now(), now()",
         "    from target t join reviewed r on r.user_id = t.user_id where r.status = 'approved'",
         "  on conflict (captain_user_id) do update set",
         "    vehicle_id = excluded.vehicle_id, registration_number = excluded.registration_number,",
         "    vehicle_make_model = excluded.vehicle_make_model, vehicle_colour = excluded.vehicle_colour,",
         "    service_city = excluded.service_city, approval_status = 'approved', is_online = false,",
+        "    profile_photo_url = excluded.profile_photo_url, licence_identifier = excluded.licence_identifier,",
+        "    licence_expires_on = excluded.licence_expires_on, commercial_permit_expires_on = excluded.commercial_permit_expires_on,",
+        "    insurance_expires_on = excluded.insurance_expires_on, fitness_expires_on = excluded.fitness_expires_on,",
+        "    puc_expires_on = excluded.puc_expires_on, photo_verified_at = now(), documents_verified_at = now(),",
         "    approved_by = excluded.approved_by, approved_at = excluded.approved_at, updated_at = now()",
         "  returning captain_user_id",
         "), wallet_initialisation as (",
