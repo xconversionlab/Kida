@@ -463,7 +463,10 @@ function CaptainApp() {
           <TopLabel>Captain activation</TopLabel>
           <h1 className="mt-2 text-2xl font-black">Your documents are being verified</h1>
           <p className="mt-2 text-sm text-neutral-600">Kida operations must approve your Captain profile and vehicle records before you can receive any customer bookings.</p>
-          {error ? <Alert>{error}</Alert> : null}
+          <div className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm">
+        <b>Captain rating</b> · {portal.captainRating.average_rating ? `★ ${portal.captainRating.average_rating} / 5 · ${portal.captainRating.rating_count} ratings` : "No customer ratings yet"}
+      </div>
+      {error ? <Alert>{error}</Alert> : null}
           <Button variant="light" onClick={() => void refresh()}>Refresh status</Button>
         </Card>
       </PageShell>
