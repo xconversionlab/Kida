@@ -270,6 +270,7 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
         activeBooking: null as (BookingCardRow & { customer_name: string | null }) | null,
         completedToday: 0,
         captainRating: { average_rating: null as string | null, rating_count: 0 },
+        pendingChange: null,
       };
     }
 
@@ -368,6 +369,20 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
         limit 1`,
       [context.userId],
     );
+    const pendingChangeRows = activeRows[0]
+      ? await sql.query<{
+          id:string;change_type:"add_stop"|"change_destination";
+          requested_selection:JsonObject;proposed_distance_km:string|number;
+          proposed_fare_paise:string|number;proposed_minutes:number;
+        }>(`
+          select id::text as id,change_type,requested_selection,
+                 proposed_distance_km::text as proposed_distance_km,
+                 proposed_fare_paise::text as proposed_fare_paise,proposed_minutes
+            from public.kida_trip_change_requests
+           where booking_id=$1::uuid and captain_user_id=$2 and status='pending'
+           order by created_at desc limit 1
+        `,[activeRows[0].id,context.userId])
+      : [];
     const ratingRows = await sql.query<{ average_rating: string | null; rating_count: number }>(`
       select round(avg(rating)::numeric,1)::text as average_rating,
              count(*)::int as rating_count
@@ -394,7 +409,73 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
       activeBooking: activeRows[0] ?? null,
       completedToday: statsRows[0]?.completed_today ?? 0,
       captainRating: ratingRows[0] ?? { average_rating: null, rating_count: 0 },
+      pendingChange: pendingChangeRows[0] ?? null,
     };
+  });
+
+
+
+const respondTripChangeSchema=z.object({
+  requestId:z.string().uuid(),
+  decision:z.enum(["accepted","declined"]),
+}).strict();
+
+/** Assigned Captain decides whether to apply the Customer's proposed route and server-calculated fare. */
+export const respondCaptainTripChange=createServerFn({method:"POST"})
+  .validator((input:unknown)=>respondTripChangeSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async({context,data})=>{
+    const sql=await getSql();
+    await requireCaptain(sql,context.userId);
+    const rows=await sql.query<{id:string;status:string}>(`
+      with target as materialized (
+        select r.id,r.booking_id,r.change_type,r.proposed_dropoff,r.proposed_stops,
+               r.proposed_distance_km,r.proposed_minutes,r.proposed_fare_paise
+          from public.kida_trip_change_requests r
+          join public.kida_bookings b on b.id=r.booking_id
+         where r.id=$1::uuid and r.captain_user_id=$2
+           and r.status='pending' and b.status='in_progress'
+         for update of r,b
+      ), changed_booking as (
+        update public.kida_bookings b
+           set dropoff=case when $3='accepted' and t.change_type='change_destination' then t.proposed_dropoff else b.dropoff end,
+               stops=case when $3='accepted' and t.change_type='add_stop' then t.proposed_stops else b.stops end,
+               client_fare_preview=case when $3='accepted' then
+                 coalesce(b.client_fare_preview,'{}'::jsonb) || jsonb_build_object(
+                   'km',t.proposed_distance_km,
+                   'minutes',t.proposed_minutes,
+                   'total',(t.proposed_fare_paise::numeric/100),
+                   'distanceCharge',(t.proposed_fare_paise::numeric/100),
+                   'discount',0,
+                   'promoCode',null
+                 )
+                 else b.client_fare_preview end,
+               updated_at=now()
+          from target t
+         where b.id=t.booking_id and $3='accepted'
+        returning b.id
+      ), changed_request as (
+        update public.kida_trip_change_requests r
+           set status=$3,responded_at=now(),updated_at=now()
+          from target t
+         where r.id=t.id
+        returning r.id,r.booking_id,r.status
+      ), audit as (
+        insert into public.kida_booking_events
+          (booking_id,actor_user_id,event_type,from_status,to_status,metadata)
+        select booking_id,$2,
+               case when status='accepted' then 'trip_change_accepted' else 'trip_change_declined' end,
+               'in_progress','in_progress',
+               jsonb_build_object('trip_change_request_id',id,'decision',status)
+          from changed_request
+        returning booking_id
+      )
+      select r.id::text as id,r.status
+        from changed_request r
+       where $3='declined' or exists(select 1 from changed_booking b where b.id=r.booking_id)
+    `,[data.requestId,context.userId,data.decision]);
+    if(!rows[0]) throw new Error("This route-change request is no longer pending or does not belong to your active trip.");
+    return rows[0];
   });
 
 async function getCaptainDailyOnlineMinutes(sql: Awaited<ReturnType<typeof getSql>>, userId: string): Promise<number> {
