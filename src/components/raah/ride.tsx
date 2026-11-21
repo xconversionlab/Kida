@@ -99,7 +99,7 @@ export function TrackingScreen() {
           </div>
         ) : null}
         <div className="kida-card flex items-center gap-3 rounded-3xl border border-line p-3">
-          <Avatar name={ride.driver.name} className="size-14" />
+          {ride.driver.photoUrl ? <img src={ride.driver.photoUrl} alt={ride.driver.name + " verified Captain photograph"} className="size-14 rounded-full border border-line object-cover" /> : <Avatar name={ride.driver.name} className="size-14" />}
           <div className="min-w-0 flex-1">
             <p className="font-semibold">{ride.driver.name}</p>
             <p className="text-sm text-muted">
@@ -108,6 +108,7 @@ export function TrackingScreen() {
               {ride.driver.colour ?? (backendRide ? "Verified Kida Captain" : "")}
             </p>
             <p className="text-xs text-muted">{backendRide ? "Assigned through Kida" : copy("simDriver")}</p>
+            {backendRide && ride.driver.licenceIdentifier ? <p className="text-xs text-muted">Licence ID / ULIN: {ride.driver.licenceIdentifier}</p> : null}
           </div>
           <div className="rounded-lg border-2 border-ink bg-road px-2 py-1 text-center">
             <p className="text-xs font-semibold">{copy("plate")}</p>
