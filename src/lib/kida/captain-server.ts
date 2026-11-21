@@ -340,9 +340,9 @@ async function getCaptainDailyOnlineMinutes(sql: Awaited<ReturnType<typeof getSq
         (date_trunc('day', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') as day_start,
         ((date_trunc('day', now() at time zone 'Asia/Kolkata') + interval '1 day') at time zone 'Asia/Kolkata') as day_end
     )
-    select coalesce(sum(greatest(0, extract(epoch from (
+    select coalesce(sum(case when s.id is null then 0 else greatest(0, extract(epoch from (
       least(coalesce(s.ended_at,now()), b.day_end) - greatest(s.started_at,b.day_start)
-    )) / 60)),0)::int as used_minutes
+    )) / 60) end),0)::int as used_minutes
     from bounds b
     left join public.kida_captain_work_sessions s
       on s.captain_user_id=$1 and s.started_at < b.day_end and coalesce(s.ended_at,now()) > b.day_start
@@ -550,6 +550,16 @@ export const advanceCaptainBooking = createServerFn({ method: "POST" })
     if (!canTransitionBooking(from, data.toStatus)) {
       throw new Error("That trip status transition is not allowed.");
     }
+    if (data.toStatus === "completed" && await getCaptainDailyOnlineMinutes(sql, context.userId) >= 480) {
+      await sql.query(
+        "update public.kida_captain_profiles set is_online=false,updated_at=now() where captain_user_id=$1",
+        [context.userId],
+      );
+      await sql.query(
+        "update public.kida_captain_work_sessions set ended_at=now() where captain_user_id=$1 and ended_at is null",
+        [context.userId],
+      );
+    }
     return rows[0];
   });
 
@@ -560,9 +570,17 @@ export const updateCaptainLocation = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     if (await getCaptainDailyOnlineMinutes(sql, context.userId) >= 480) {
-      await sql.query("update public.kida_captain_profiles set is_online=false,updated_at=now() where captain_user_id=$1", [context.userId]);
-      await sql.query("update public.kida_captain_work_sessions set ended_at=now() where captain_user_id=$1 and ended_at is null", [context.userId]);
-      throw new Error("The 8-hour online-time limit has been reached. You have been taken offline for today.");
+      const activeTrip = await sql.query<{ id: string }>(
+        "select id::text as id from public.kida_bookings where captain_user_id=$1 and status in ('accepted','captain_arriving','arrived','in_progress') limit 1",
+        [context.userId],
+      );
+      if (!activeTrip[0]) {
+        await sql.query("update public.kida_captain_profiles set is_online=false,updated_at=now() where captain_user_id=$1", [context.userId]);
+        await sql.query("update public.kida_captain_work_sessions set ended_at=now() where captain_user_id=$1 and ended_at is null", [context.userId]);
+        throw new Error("The 8-hour online-time limit has been reached. You have been taken offline for today.");
+      }
+      // Keep safety GPS flowing until this active passenger trip is completed.
+      // The accept endpoint independently blocks any new trips after the limit.
     }
     const rows = await sql.query<{ updated_at: string }>(
       `insert into public.kida_captain_locations

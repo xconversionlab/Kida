@@ -228,12 +228,12 @@ export const getCaptainWorkSummary = createServerFn({ method: "GET" })
           ((date_trunc('day', now() at time zone 'Asia/Kolkata') + interval '1 day') at time zone 'Asia/Kolkata') as day_end
       )
       select
-        coalesce(sum(greatest(0, extract(epoch from (
+        coalesce(sum(case when s.id is null then 0 else greatest(0, extract(epoch from (
           least(coalesce(s.ended_at,now()), b.day_end) - greatest(s.started_at,b.day_start)
-        )) / 60)),0)::int as used_minutes,
-        greatest(0,480 - coalesce(sum(greatest(0, extract(epoch from (
+        )) / 60) end),0)::int as used_minutes,
+        greatest(0,480 - coalesce(sum(case when s.id is null then 0 else greatest(0, extract(epoch from (
           least(coalesce(s.ended_at,now()), b.day_end) - greatest(s.started_at,b.day_start)
-        )) / 60)),0))::int as remaining_minutes,
+        )) / 60) end),0))::int as remaining_minutes,
         max(s.started_at)::text as session_started_at
       from bounds b
       left join public.kida_captain_work_sessions s
@@ -322,6 +322,16 @@ export const createLiveTripShare = createServerFn({ method: "POST" })
     return { token, expiresAt: rows[0]?.expires_at ?? null };
   });
 
+type ShareLocation = {
+  source?: string;
+  placeId?: string;
+  landmarkId?: string;
+  label?: string;
+  line?: string;
+  lat?: number | string;
+  lng?: number | string;
+};
+
 const sharedTripSchema = z.object({ token: z.string().min(32).max(128) }).strict();
 export const getSharedKidaTrip = createServerFn({ method: "GET" })
   .validator((input: unknown) => sharedTripSchema.parse(input))
@@ -329,7 +339,7 @@ export const getSharedKidaTrip = createServerFn({ method: "GET" })
     const sql = await getSql();
     const tokenHash = createHash("sha256").update(data.token).digest("hex");
     const rows = await sql.query<{
-      id: string; status: string; pickup: Record<string, unknown>; dropoff: Record<string, unknown>;
+      id: string; status: string; pickup: ShareLocation; dropoff: ShareLocation;
       captain_name: string | null; captain_registration_number: string | null;
       captain_latitude: string | null; captain_longitude: string | null;
       captain_location_updated_at: string | null; expires_at: string;
