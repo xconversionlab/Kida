@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { cancelMyBooking, createMySupportTicket, rateMyCompletedRide } from "@/lib/kida/server";
+import { cancelMyBooking, createMySupportTicket, rateMyCompletedRide, requestMyTripChange } from "@/lib/kida/server";
 import { createLiveTripShare } from "@/lib/kida/client-requirements-server";
 import { MessageCircle, Phone, Share2, ShieldAlert } from "lucide-react";
 import { company } from "@/lib/raah/company";
@@ -18,6 +18,12 @@ export function TrackingScreen() {
   const tick = useRaah((s) => s.tickRide);
   const complete = useRaah((s) => s.completeRide);
   const open = useRaah((s) => s.open);
+  const beginTripChange = useRaah((s) => s.beginTripChange);
+  const tripChangeSelection = useRaah((s) => s.tripChangeSelection);
+  const clearTripChangeSelection = useRaah((s) => s.clearTripChangeSelection);
+  const [changeBusy, setChangeBusy] = useState(false);
+  const [changeNotice, setChangeNotice] = useState("");
+  const [changeError, setChangeError] = useState("");
   const [why, setWhy] = useState(false);
   const backendRide = Boolean(ride?.backendBookingId);
 
@@ -26,6 +32,33 @@ export function TrackingScreen() {
     const id = window.setInterval(() => tick(), 800);
     return () => window.clearInterval(id);
   }, [tick, backendRide]);
+
+  useEffect(() => {
+    if (!tripChangeSelection) return;
+    const pending = tripChangeSelection;
+    let active = true;
+    setChangeBusy(true);
+    setChangeError("");
+    setChangeNotice("");
+    void requestMyTripChange({
+      data: {
+        bookingId: pending.bookingId,
+        changeType: pending.changeType,
+        selection: pending.selection,
+      },
+    }).then((result) => {
+      if (!active) return;
+      const amount = new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(result.newFare);
+      const delta = result.fareDelta === 0 ? "no fare change" : result.fareDelta > 0 ? `fare increases by ₹${result.fareDelta}` : `fare decreases by ₹${Math.abs(result.fareDelta)}`;
+      setChangeNotice(`Request sent to your Captain. Proposed fare: ${amount} (${delta}). The route and fare will change only after Captain acceptance.`);
+    }).catch((cause) => {
+      if (active) setChangeError(cause instanceof Error ? cause.message : "Your route-change request could not be sent.");
+    }).finally(() => {
+      clearTripChangeSelection();
+      if (active) setChangeBusy(false);
+    });
+    return () => { active = false; };
+  }, [tripChangeSelection, clearTripChangeSelection]);
 
   if (!ride) {
     return <div className="px-4 py-8"><p className="text-muted">{copy("searching")}</p></div>;
@@ -119,6 +152,19 @@ export function TrackingScreen() {
             <p className="text-xs font-semibold text-muted">YOUR RIDE PIN</p>
             <p className="mt-1 font-display text-3xl tracking-[0.3em] tabular">{ride.tripPin}</p>
             <p className="mt-1 text-xs text-muted">Show this PIN to the Captain only after you have reached the pickup and verified the vehicle.</p>
+          </div>
+        ) : null}
+        {backendRide && ride.backendStatus === "in_progress" ? (
+          <div className="rounded-2xl border border-primary/30 bg-primary-soft p-3">
+            <p className="font-semibold">Need to change your route?</p>
+            <p className="mt-1 text-xs text-muted">Choose an extra stop or a new destination. Kida recalculates the road route and fare, then asks your Captain to accept it.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Btn variant="line" disabled={changeBusy} onClick={() => ride.backendBookingId && beginTripChange(ride.backendBookingId,"add_stop")}>Add a stop</Btn>
+              <Btn variant="line" disabled={changeBusy} onClick={() => ride.backendBookingId && beginTripChange(ride.backendBookingId,"change_destination")}>Change destination</Btn>
+            </div>
+            {changeBusy ? <p role="status" className="mt-2 text-xs text-muted">Submitting your route-change request…</p> : null}
+            {changeNotice ? <p role="status" className="mt-2 text-xs text-ink">{changeNotice}</p> : null}
+            {changeError ? <p role="alert" className="mt-2 text-xs text-danger">{changeError}</p> : null}
           </div>
         ) : null}
         <div className="grid grid-cols-4 gap-2">
