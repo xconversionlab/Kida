@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { cancelMyBooking, createMySupportTicket } from "@/lib/kida/server";
+import { cancelMyBooking, createMySupportTicket, rateMyCompletedRide } from "@/lib/kida/server";
 import { createLiveTripShare } from "@/lib/kida/client-requirements-server";
 import { MessageCircle, Phone, Share2, ShieldAlert } from "lucide-react";
 import { company } from "@/lib/raah/company";
@@ -212,6 +212,23 @@ export function CompleteScreen() {
   const [stars, setStars] = useState(5);
   const [text, setText] = useState("");
   const [tipAmount, setTipAmount] = useState(0);
+  const [ratingBusy, setRatingBusy] = useState(false);
+  const [ratingError, setRatingError] = useState("");
+  async function submitRating() {
+    if (!ride || ratingBusy) return;
+    setRatingBusy(true);
+    setRatingError("");
+    try {
+      if (ride.backendBookingId && ride.backendStatus === "completed") {
+        await rateMyCompletedRide({ data: { bookingId: ride.backendBookingId, rating: stars, feedback: text } });
+      }
+      rate(stars, text, tipAmount);
+    } catch (cause) {
+      setRatingError(cause instanceof Error ? cause.message : "Your rating could not be saved. Please try again.");
+    } finally {
+      setRatingBusy(false);
+    }
+  }
   if (!ride) return null;
   return (
     <div className="px-4 py-6">
@@ -253,8 +270,9 @@ export function CompleteScreen() {
         onChange={(event) => setText(event.target.value)}
         placeholder={copy("feedbackPh")}
       />
-      <Btn className="mt-4 w-full" onClick={() => rate(stars, text, tipAmount)}>
-        {copy("done")}
+      {ratingError ? <p role="alert" className="mt-3 text-sm text-danger">{ratingError}</p> : null}
+      <Btn className="mt-4 w-full" disabled={ratingBusy} onClick={() => void submitRating()}>
+        {ratingBusy ? "Saving rating…" : copy("done")}
       </Btn>
     </div>
   );
