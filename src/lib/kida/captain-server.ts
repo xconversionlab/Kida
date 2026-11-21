@@ -22,6 +22,13 @@ const applicationSchema = z.object({
   confirmsValidDrivingLicence: z.literal(true),
   confirmsCommercialPermit: z.literal(true),
   confirmsValidInsurance: z.literal(true),
+  photoUrl: z.string().url().max(2048).refine((value) => value.startsWith("https://"), "A secure HTTPS photo link is required."),
+  licenceIdentifier: z.string().trim().min(4).max(64),
+  licenceExpiresOn: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  commercialPermitExpiresOn: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  insuranceExpiresOn: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/),
+  fitnessExpiresOn: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).nullable(),
+  pucExpiresOn: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).nullable(),
 }).strict();
 
 const onlineSchema = z.object({ isOnline: z.boolean() }).strict();
@@ -71,6 +78,13 @@ type ApplicationRow = {
   vehicle_make_model: string;
   vehicle_colour: string;
   service_city: string;
+  photo_url: string;
+  licence_identifier: string;
+  licence_expires_on: string;
+  commercial_permit_expires_on: string;
+  insurance_expires_on: string;
+  fitness_expires_on: string | null;
+  puc_expires_on: string | null;
   reviewer_note: string | null;
   submitted_at: string;
 };
@@ -138,8 +152,11 @@ export const applyForCaptain = createServerFn({ method: "POST" })
       `insert into public.kida_captain_applications
          (user_id, full_name, phone_e164, vehicle_id, registration_number,
           vehicle_make_model, vehicle_colour, service_city,
-          confirms_valid_driving_licence, confirms_commercial_permit, confirms_valid_insurance)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          confirms_valid_driving_licence, confirms_commercial_permit, confirms_valid_insurance,
+          photo_url, licence_identifier, licence_expires_on, commercial_permit_expires_on,
+          insurance_expires_on, fitness_expires_on, puc_expires_on)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11,
+               $12, $13, $14::date, $15::date, $16::date, $17::date, $18::date)
        on conflict (user_id) do update set
          full_name = excluded.full_name,
          phone_e164 = excluded.phone_e164,
@@ -151,6 +168,13 @@ export const applyForCaptain = createServerFn({ method: "POST" })
          confirms_valid_driving_licence = excluded.confirms_valid_driving_licence,
          confirms_commercial_permit = excluded.confirms_commercial_permit,
          confirms_valid_insurance = excluded.confirms_valid_insurance,
+         photo_url = excluded.photo_url,
+         licence_identifier = excluded.licence_identifier,
+         licence_expires_on = excluded.licence_expires_on,
+         commercial_permit_expires_on = excluded.commercial_permit_expires_on,
+         insurance_expires_on = excluded.insurance_expires_on,
+         fitness_expires_on = excluded.fitness_expires_on,
+         puc_expires_on = excluded.puc_expires_on,
          status = 'pending_review',
          reviewer_note = null,
          reviewed_by = null,
@@ -159,7 +183,13 @@ export const applyForCaptain = createServerFn({ method: "POST" })
        where public.kida_captain_applications.status in ('rejected','needs_changes')
        returning id::text as id, status, full_name, phone_e164, vehicle_id,
                  registration_number, vehicle_make_model, vehicle_colour,
-                 service_city, reviewer_note, submitted_at::text as submitted_at`,
+                 service_city, photo_url, licence_identifier,
+                 licence_expires_on::text as licence_expires_on,
+                 commercial_permit_expires_on::text as commercial_permit_expires_on,
+                 insurance_expires_on::text as insurance_expires_on,
+                 fitness_expires_on::text as fitness_expires_on,
+                 puc_expires_on::text as puc_expires_on,
+                 reviewer_note, submitted_at::text as submitted_at`,
       [
         context.userId,
         data.fullName,
@@ -172,6 +202,13 @@ export const applyForCaptain = createServerFn({ method: "POST" })
         data.confirmsValidDrivingLicence,
         data.confirmsCommercialPermit,
         data.confirmsValidInsurance,
+        data.photoUrl,
+        data.licenceIdentifier,
+        data.licenceExpiresOn,
+        data.commercialPermitExpiresOn,
+        data.insuranceExpiresOn,
+        data.fitnessExpiresOn,
+        data.pucExpiresOn,
       ],
     );
     if (inserted[0]) return inserted[0];
@@ -225,7 +262,13 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
 
     const profileRows = await sql.query<ProfileRow>(
       `select captain_user_id, vehicle_id, registration_number, vehicle_make_model,
-              vehicle_colour, service_city, approval_status, is_online, is_woman_captain
+              vehicle_colour, service_city, approval_status, is_online, is_woman_captain,
+              profile_photo_url, licence_identifier, licence_expires_on::text as licence_expires_on,
+              commercial_permit_expires_on::text as commercial_permit_expires_on,
+              insurance_expires_on::text as insurance_expires_on,
+              fitness_expires_on::text as fitness_expires_on,
+              puc_expires_on::text as puc_expires_on,
+              photo_verified_at::text as photo_verified_at, documents_verified_at::text as documents_verified_at
          from public.kida_captain_profiles
         where captain_user_id = $1 limit 1`,
       [context.userId],
@@ -665,6 +708,8 @@ export const listMyBookingsWithCaptain = createServerFn({ method: "GET" })
       captain_registration_number: string | null;
       captain_vehicle_id: string | null;
       captain_vehicle_colour: string | null;
+      captain_photo_url: string | null;
+      captain_licence_identifier: string | null;
       captain_latitude: string | number | null;
       captain_longitude: string | number | null;
       captain_location_updated_at: string | null;
@@ -681,6 +726,8 @@ export const listMyBookingsWithCaptain = createServerFn({ method: "GET" })
               c.registration_number as captain_registration_number,
               c.vehicle_id as captain_vehicle_id,
               c.vehicle_colour as captain_vehicle_colour,
+              case when c.photo_verified_at is not null then c.profile_photo_url else null end as captain_photo_url,
+              c.licence_identifier as captain_licence_identifier,
               l.latitude::text as captain_latitude,
               l.longitude::text as captain_longitude,
               l.updated_at::text as captain_location_updated_at
