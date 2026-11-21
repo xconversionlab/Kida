@@ -298,6 +298,8 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
         availableBookings: [] as BookingCardRow[],
         activeBooking: null as (BookingCardRow & { customer_name: string | null }) | null,
         completedToday: 0,
+        captainRating: { average_rating: null as string | null, rating_count: 0 },
+        pendingChange: null,
       };
     }
 
