@@ -41,6 +41,7 @@ const campaignInputSchema = z.object({
   officeStartTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
   officeEndTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
   officeAreaLabel: z.string().trim().max(160).nullable(),
+  clientApproved: z.boolean(),
 }).strict().superRefine((value, ctx) => {
   if (value.frequencyMode === "every_n" && (value.frequencyN === null || value.probabilityBps !== null)) {
     ctx.addIssue({ code: "custom", path: ["frequencyN"], message: "Every-N campaigns require an interval and no probability." });
@@ -73,6 +74,7 @@ export const listKidaCampaigns = createServerFn({ method: "GET" })
       daily_budget_paise: string | null; weekly_budget_paise: string | null;
       max_uses_per_customer: number; first_ride_only: boolean; second_ride_only: boolean;
       office_start_time: string | null; office_end_time: string | null; office_area_label: string | null;
+      client_approved: boolean;
       redemptions_today: number; spend_today_paise: string; spend_week_paise: string;
     }>(`
       select c.id::text as id, c.name, c.description, c.status,
@@ -86,6 +88,7 @@ export const listKidaCampaigns = createServerFn({ method: "GET" })
              c.max_uses_per_customer, c.first_ride_only, c.second_ride_only,
              c.office_start_time::text as office_start_time,
              c.office_end_time::text as office_end_time, c.office_area_label,
+             c.client_approved,
              count(r.id) filter (where r.used_at >= date_trunc('day', now()))::int as redemptions_today,
              coalesce(sum(r.company_funded_paise) filter (where r.used_at >= date_trunc('day', now()) and r.status in ('reserved','completed')),0)::text as spend_today_paise,
              coalesce(sum(r.company_funded_paise) filter (where r.used_at >= date_trunc('week', now()) and r.status in ('reserved','completed')),0)::text as spend_week_paise
@@ -111,7 +114,7 @@ export const saveKidaCampaign = createServerFn({ method: "POST" })
       data.frequencyMode, data.frequencyN, data.probabilityBps,
       data.dailyBudgetPaise, data.weeklyBudgetPaise, data.maxUsesPerCustomer,
       data.firstRideOnly, data.secondRideOnly, data.officeStartTime,
-      data.officeEndTime, data.officeAreaLabel, context.userId,
+      data.officeEndTime, data.officeAreaLabel, context.userId, data.clientApproved,
     ];
     const rows = await sql.query<{ id: string }>(`
       with inserted as (
@@ -120,14 +123,15 @@ export const saveKidaCampaign = createServerFn({ method: "POST" })
            reward_type, reward_value, maximum_discount_paise, eligible_vehicle_ids,
            frequency_mode, frequency_n, probability_bps, daily_budget_paise,
            weekly_budget_paise, max_uses_per_customer, first_ride_only, second_ride_only,
-           office_start_time, office_end_time, office_area_label, created_by, updated_by)
+           office_start_time, office_end_time, office_area_label, created_by, updated_by,
+           client_approved, client_approved_at)
         values ($1,$2,'draft',$3::timestamptz,$4::timestamptz,$5,
                 $6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,
-                $18::time,$19::time,$20,$21,$21)
+                $18::time,$19::time,$20,$21,$21,$22,case when $22 then now() else null end)
         returning id
       ), audit as (
         insert into public.kida_campaign_audit (campaign_id, actor_user_id, action, after_state)
-        select id, $21, 'created', jsonb_build_object('name',$1,'status','draft')
+        select id, $21, 'created', jsonb_build_object('name',$1,'status','draft','client_approved',$22)
           from inserted
         returning campaign_id
       )
@@ -153,12 +157,13 @@ export const setKidaCampaignStatus = createServerFn({ method: "POST" })
         select (
           starts_at is not null and ends_at is not null and ends_at > now()
           and minimum_fare_paise >= 0 and maximum_discount_paise > 0
+          and client_approved = true
           and (daily_budget_paise is not null or weekly_budget_paise is not null)
         ) as valid
           from public.kida_campaigns where id = $1::uuid and status in ('draft','paused')
       `, [data.campaignId]);
       if (!valid[0]?.valid) {
-        throw new Error("Activation requires an approved start/end window, a discount cap, and a daily or weekly spend budget.");
+        throw new Error("Activation requires explicit client approval, a valid start/end window, a discount cap, and a daily or weekly spend budget.");
       }
     }
     const rows = await sql.query<{ id: string; status: string }>(`
