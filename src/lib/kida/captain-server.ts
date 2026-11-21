@@ -722,6 +722,8 @@ export const listMyBookingsWithCaptain = createServerFn({ method: "GET" })
       captain_vehicle_colour: string | null;
       captain_photo_url: string | null;
       captain_licence_identifier: string | null;
+      captain_average_rating: string | number | null;
+      captain_rating_count: number;
       captain_latitude: string | number | null;
       captain_longitude: string | number | null;
       captain_location_updated_at: string | null;
@@ -740,6 +742,8 @@ export const listMyBookingsWithCaptain = createServerFn({ method: "GET" })
               c.vehicle_colour as captain_vehicle_colour,
               case when c.photo_verified_at is not null then c.profile_photo_url else null end as captain_photo_url,
               c.licence_identifier as captain_licence_identifier,
+              captain_ratings.average_rating as captain_average_rating,
+              coalesce(captain_ratings.rating_count,0)::int as captain_rating_count,
               l.latitude::text as captain_latitude,
               l.longitude::text as captain_longitude,
               l.updated_at::text as captain_location_updated_at
@@ -748,6 +752,12 @@ export const listMyBookingsWithCaptain = createServerFn({ method: "GET" })
            on c.captain_user_id = b.captain_user_id
           and c.approval_status = 'approved'
          left join public.kida_profiles p on p.user_id = c.captain_user_id
+         left join lateral (
+           select round(avg(r.rating)::numeric,1)::text as average_rating,
+                  count(*)::int as rating_count
+             from public.kida_captain_ratings r
+            where r.captain_user_id = c.captain_user_id
+         ) captain_ratings on true
          left join public.kida_captain_locations l
            on l.captain_user_id = c.captain_user_id
           and l.updated_at >= now() - interval '90 seconds'
