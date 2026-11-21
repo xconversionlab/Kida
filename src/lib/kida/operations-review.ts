@@ -5,6 +5,7 @@ export type CaptainDocumentChecks = {
   insurance: boolean;
   fitnessPuc: boolean;
   vehicleRegistration: boolean;
+  captainPhoto: boolean;
 };
 
 export const REQUIRED_CAPTAIN_DOCUMENT_CHECKS = [
@@ -14,6 +15,7 @@ export const REQUIRED_CAPTAIN_DOCUMENT_CHECKS = [
   "insurance",
   "fitnessPuc",
   "vehicleRegistration",
+  "captainPhoto",
 ] as const satisfies readonly (keyof CaptainDocumentChecks)[];
 
 /** Approval requires Operations to check every original document. */
@@ -31,5 +33,6 @@ export function emptyCaptainDocumentChecks(): CaptainDocumentChecks {
     insurance: false,
     fitnessPuc: false,
     vehicleRegistration: false,
+    captainPhoto: false,
   };
 }
