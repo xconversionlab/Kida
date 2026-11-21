@@ -103,8 +103,7 @@ export function TrackingScreen() {
           <div className="min-w-0 flex-1">
             <p className="font-semibold">{ride.driver.name}</p>
             <p className="text-sm text-muted">
-              {ride.driver.rating ? `${ride.driver.rating} · ` : ""}
-              {ride.driver.trips ? `${ride.driver.trips} trips · ` : ""}
+              {ride.driver.rating ? `${ride.driver.rating} ★${ride.driver.ratingCount ? ` · ${ride.driver.ratingCount} ratings` : ""} · ` : ""}
               {ride.driver.colour ?? (backendRide ? "Verified Kida Captain" : "")}
             </p>
             <p className="text-xs text-muted">{backendRide ? "Assigned through Kida" : copy("simDriver")}</p>
