@@ -216,7 +216,13 @@ export const applyForCaptain = createServerFn({ method: "POST" })
     const prior = await sql.query<ApplicationRow>(
       `select id::text as id, status, full_name, phone_e164, vehicle_id,
               registration_number, vehicle_make_model, vehicle_colour,
-              service_city, reviewer_note, submitted_at::text as submitted_at
+              service_city, photo_url, licence_identifier,
+              licence_expires_on::text as licence_expires_on,
+              commercial_permit_expires_on::text as commercial_permit_expires_on,
+              insurance_expires_on::text as insurance_expires_on,
+              fitness_expires_on::text as fitness_expires_on,
+              puc_expires_on::text as puc_expires_on,
+              reviewer_note, submitted_at::text as submitted_at
          from public.kida_captain_applications
         where user_id = $1 limit 1`,
       [context.userId],
@@ -241,7 +247,13 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
     const applications = await sql.query<ApplicationRow>(
       `select id::text as id, status, full_name, phone_e164, vehicle_id,
               registration_number, vehicle_make_model, vehicle_colour,
-              service_city, reviewer_note, submitted_at::text as submitted_at
+              service_city, photo_url, licence_identifier,
+              licence_expires_on::text as licence_expires_on,
+              commercial_permit_expires_on::text as commercial_permit_expires_on,
+              insurance_expires_on::text as insurance_expires_on,
+              fitness_expires_on::text as fitness_expires_on,
+              puc_expires_on::text as puc_expires_on,
+              reviewer_note, submitted_at::text as submitted_at
          from public.kida_captain_applications
         where user_id = $1 limit 1`,
       [context.userId],
