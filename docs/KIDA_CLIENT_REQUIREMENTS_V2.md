@@ -326,3 +326,46 @@ The earlier client-provided compulsory Captain opening ledger amount is also sti
 ## 11. Current release statement
 
 The current `feature/captain-app` branch is a working development/preview build, not a production ride-hailing launch. Existing screens, server functions and schema foundations must not be described as live payments, verified UPI, masked calling, 24x7 support, certified compliance, guaranteed live trip sharing, automated Captain payouts or completed accessibility compliance until those capabilities are integrated, tested and operational.
+
+## 12. Implementation progress update — 22 November 2026
+
+The following work has since been added to the `feature/captain-app` development branch. It is not yet merged to `main` and does not by itself constitute a production release.
+
+### Implemented in the development branch
+
+- **Live trip sharing:** account-backed Customers can create a private 12-hour share link; the token is stored as a SHA-256 hash, a new link revokes the previous link, and the share page refreshes trip status and recent Captain GPS.
+- **Captain safety record:** Captains can record a Captain/passenger/vehicle SOS event from their app and can call India's 112 emergency number. The alert is stored, but no staff response or emergency dispatch is connected.
+- **Captain online-time control:** the backend tracks daily online sessions using India Standard Time, blocks new rides at the eight-hour limit, continues GPS for an active passenger trip, and takes the Captain offline after that trip is completed. This is a provisional interpretation of the client's eight-hour rule as *online time* and needs client confirmation.
+- **Payout preference:** Captains can save a preference for weekly or every-three-days payouts. This is a preference record only; no UPI/bank verification or payout is executed.
+- **Customer ratings:** customers can rate their own completed assigned trip (one editable rating per booking). Average rating and rating count are displayed to Customers and the Captain workspace. The current accept-first dispatch flow is not yet a central rating-weighted matching algorithm.
+- **Captain photo and licence validity:** Captain applications capture an HTTPS-hosted photo URL, licence identifier and mandatory licence/permit/insurance expiry dates, with optional fitness/PUC expiry dates. Operations sees these details and must explicitly verify the photograph and documents. Approval is blocked if mandatory evidence is missing or expired. The approved photo and licence identifier are returned to the Customer trip card.
+- **Campaign dashboard:** Operations can create campaign drafts, configure frequency/audience/time/budget/cap/vehicle rules, pause/end campaigns, and inspect redemption/spend/area/peak-hour reports. Example values from the client's messages are not pre-filled. Campaign activation requires an explicit client-approval flag and a valid budget/window.
+- **Grievance queue:** Operations has a role-protected queue to review customer support/lost-item tickets, set priority and status, record resolution notes and append an audit event.
+- **Mid-trip route changes:** during an account-backed trip in progress, a Customer can select an additional stop or new destination. Kida verifies the new road route and calculates the revised estimate from the approved per-kilometre rate. The request is sent to the assigned Captain, and the booking route/fare change is applied only after the Captain accepts.
+- **Accessibility baseline:** keyboard-visible focus styling and reduced-motion CSS preferences are included. This is not a completed WCAG audit or assistive-technology test.
+- **Language:** the Captain workspace has a language selector with English, Hindi and Marathi labels for key workspace controls. The entire Captain app and Operations interface are not yet fully translated.
+
+### Current technical and release limits
+
+- The public OSM/Photon/Overpass/OSRM demo services remain preview dependencies; production-grade licensed/operated infrastructure, monitoring, caching and vehicle-specific route profiles are still required.
+- Mid-trip fare recalculation uses the current Kida per-kilometre card (E-Bike ₹15/km, Auto ₹20/km, Mini ₹25/km, 7-seater ₹30/km), without adding unapproved base fare, taxes, waiting or tolls. Promotional/free rides are deliberately blocked from mid-trip repricing until their commercial treatment is approved.
+- Customer share links can show only the latest location fix that the Captain app has uploaded. They do not guarantee background GPS, continuous coverage or staffed monitoring.
+- Captain photos are currently supplied by an HTTPS-hosted image URL. Native image/document upload, secure private storage, document evidence retention and deletion policy still require an approved storage provider and privacy design.
+- The 24×7 grievance queue is a software workflow, not a staffed service. A rota, customer contact channels, response/resolution targets and escalation procedure remain required.
+- Campaign management is configuration/reporting only. Automatic booking-time campaign eligibility, atomic budget reservation, redemption, company-funded Captain payout and finance reconciliation are not yet connected. Do not advertise a campaign merely because it is present in this dashboard.
+- The daily work limit is interpreted as eight hours online. Client confirmation is required before enforcing it as active driving or paid-duty time.
+- Customer rating is persisted and surfaced, but rating-weighted central dispatch is not yet implemented.
+- Phone/SMS OTP, masked calling, payment gateway, verified UPI, bank payout execution, subscription billing, cancellation fees, push delivery and actual SOS/grievance response remain provider- or policy-dependent.
+- No PCI DSS/RBI compliance finding, CERT-In empanelled security audit certificate, or other independent certification is claimed.
+- “ULIN” remains the label supplied by the client. The issuer, exact format and whether it is the same as the driving-licence identifier must be confirmed before using it as a legally verified identifier.
+
+### New database migrations
+
+- `0008_client_requirements_v2.sql` — campaign, work-session, SOS, payout preference and trip-share foundations.
+- `0009_support_grievance_ops.sql` — support priority, assignment and grievance audit history.
+- `0010_captain_identity_and_validity.sql` — Captain photo, licence identifier and document validity gates.
+- `0011_campaign_client_approval.sql` — explicit client-approval gate for campaigns.
+- `0012_captain_ratings.sql` — one customer rating per completed booking.
+- `0013_trip_change_requests.sql` — Captain-approved mid-trip route-change requests.
+
+Do not treat this progress section as a production-readiness declaration. Merge, production environment configuration, provider contracts, client policy approvals, migration verification against the production database, end-to-end testing and independent compliance review remain separate release gates.
