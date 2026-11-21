@@ -135,6 +135,8 @@ export interface Driver {
   vehicle: VehicleId;
   trips?: number;
   colour?: string;
+  photoUrl?: string;
+  licenceIdentifier?: string;
 }
 
 export interface ChatMessage {
