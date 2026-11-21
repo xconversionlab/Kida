@@ -541,3 +541,42 @@ export const listMySupportTickets = createServerFn({ method: "GET" })
       [context.userId],
     );
   });
+
+const captainRatingSchema = z.object({
+  bookingId: z.string().uuid(),
+  rating: z.number().int().min(1).max(5),
+  feedback: z.string().trim().max(1000).default(""),
+}).strict();
+
+/** Save or update the signed-in customer's rating for their own completed, assigned ride. */
+export const rateMyCompletedRide = createServerFn({ method: "POST" })
+  .validator((input: unknown) => captainRatingSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const rows = await sql.query<{
+      booking_id: string;
+      rating: number;
+      feedback: string;
+      updated_at: string;
+    }>(`
+      insert into public.kida_captain_ratings
+        (booking_id, customer_user_id, captain_user_id, rating, feedback)
+      select b.id, b.user_id, b.captain_user_id, $3, $4
+        from public.kida_bookings b
+       where b.id=$1::uuid
+         and b.user_id=$2
+         and b.status='completed'
+         and b.captain_user_id is not null
+      on conflict (booking_id) do update
+        set rating=excluded.rating,
+            feedback=excluded.feedback,
+            updated_at=now()
+      where public.kida_captain_ratings.customer_user_id=excluded.customer_user_id
+      returning booking_id::text as booking_id, rating, feedback, updated_at::text as updated_at
+    `, [data.bookingId, context.userId, data.rating, data.feedback]);
+    if (!rows[0]) {
+      throw new Error("A Captain rating can be saved only for your own completed Kida ride.");
+    }
+    return rows[0];
+  });
