@@ -137,6 +137,7 @@ export interface Driver {
   colour?: string;
   photoUrl?: string;
   licenceIdentifier?: string;
+  ratingCount?: number;
 }
 
 export interface ChatMessage {
