@@ -7,6 +7,7 @@ import {
   advanceCaptainBooking,
   applyForCaptain,
   getMyCaptainPortal,
+  respondCaptainTripChange,
   setCaptainAvailability,
   updateCaptainLocation,
 } from "@/lib/kida/captain-server";
@@ -159,6 +160,8 @@ function CaptainApp() {
   const [submitting, setSubmitting] = useState(false);
   const [tripPin, setTripPin] = useState("");
   const [tripBusy, setTripBusy] = useState(false);
+  const [changeBusy, setChangeBusy] = useState(false);
+  const [changeNotice, setChangeNotice] = useState("");
   const [captainPosition, setCaptainPosition] = useState<{ lat: number; lng: number } | null>(null);
   const [language, setLanguage] = useState<CaptainLanguage>("en");
   const translate = (key: string) => CAPTAIN_COPY[language][key] ?? CAPTAIN_COPY.en[key] ?? key;
@@ -280,6 +283,24 @@ function CaptainApp() {
       setError(cause instanceof Error ? cause.message : "Application could not be submitted.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function respondToRouteChange(decision: "accepted" | "declined") {
+    if (!portal?.pendingChange || changeBusy) return;
+    setChangeBusy(true);
+    setChangeNotice("");
+    setError("");
+    try {
+      await respondCaptainTripChange({ data: { requestId: portal.pendingChange.id, decision } });
+      setChangeNotice(decision === "accepted"
+        ? "Route change accepted. The revised stops/destination and fare are now applied to the trip."
+        : "Route change declined. The original route and fare remain unchanged.");
+      await refresh(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The route-change response could not be saved.");
+    } finally {
+      setChangeBusy(false);
     }
   }
 
@@ -463,7 +484,34 @@ function CaptainApp() {
           <TopLabel>Captain activation</TopLabel>
           <h1 className="mt-2 text-2xl font-black">Your documents are being verified</h1>
           <p className="mt-2 text-sm text-neutral-600">Kida operations must approve your Captain profile and vehicle records before you can receive any customer bookings.</p>
-          <div className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm">
+          {portal.pendingChange ? (
+        <Card className="border-2 border-amber-300">
+          <TopLabel>Customer route-change request</TopLabel>
+          <h2 className="mt-1 text-lg font-black">
+            {portal.pendingChange.change_type === "add_stop" ? "Add an extra stop" : "Change destination"}
+          </h2>
+          <p className="mt-2 text-sm text-neutral-700">
+            {typeof portal.pendingChange.requested_selection.label === "string"
+              ? portal.pendingChange.requested_selection.label
+              : "Requested location"}
+          </p>
+          {typeof portal.pendingChange.requested_selection.line === "string" ? (
+            <p className="text-xs text-neutral-500">{portal.pendingChange.requested_selection.line}</p>
+          ) : null}
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-xl bg-neutral-50 p-3"><p className="text-[10px] font-bold uppercase text-neutral-500">New route</p><p className="font-black">{Number(portal.pendingChange.proposed_distance_km).toFixed(2)} km</p></div>
+            <div className="rounded-xl bg-neutral-50 p-3"><p className="text-[10px] font-bold uppercase text-neutral-500">Revised fare</p><p className="font-black">{money(portal.pendingChange.proposed_fare_paise)}</p></div>
+          </div>
+          <p className="mt-2 text-xs text-neutral-500">Kida recalculated this estimate using the road route and approved per-kilometre rate. Do not accept until the customer confirms the displayed change.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button variant="light" disabled={changeBusy} onClick={() => void respondToRouteChange("declined")}>Decline</Button>
+            <Button variant="yellow" disabled={changeBusy} onClick={() => void respondToRouteChange("accepted")}>{changeBusy ? "Saving…" : "Accept change"}</Button>
+          </div>
+          {changeNotice ? <p role="status" className="mt-2 text-sm text-neutral-700">{changeNotice}</p> : null}
+        </Card>
+      ) : null}
+
+      <div className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm">
         <b>Captain rating</b> · {portal.captainRating.average_rating ? `★ ${portal.captainRating.average_rating} / 5 · ${portal.captainRating.rating_count} ratings` : "No customer ratings yet"}
       </div>
       {error ? <Alert>{error}</Alert> : null}
