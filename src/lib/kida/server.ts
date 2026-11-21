@@ -580,3 +580,93 @@ export const rateMyCompletedRide = createServerFn({ method: "POST" })
     }
     return rows[0];
   });
+
+const tripChangeSchema = z.object({
+  bookingId: z.string().uuid(),
+  changeType: z.enum(["add_stop","change_destination"]),
+  selection: selectionSchema,
+}).strict();
+
+async function getVerifiedRouteQuote(points: Array<{lat:number;lng:number}>): Promise<{distanceKm:number;durationMinutes:number}> {
+  if (points.length < 2) throw new Error("A pickup and destination are required.");
+  const configuredBaseUrl = process.env.KIDA_OSRM_BASE_URL;
+  if (!configuredBaseUrl) throw new Error("Kida road routing is not configured for this environment.");
+  const baseUrl = configuredBaseUrl.endsWith("/") ? configuredBaseUrl.slice(0,-1) : configuredBaseUrl;
+  const coordinates = points.map(point=>`${point.lng},${point.lat}`).join(";");
+  const url = `${baseUrl}/route/v1/driving/${coordinates}?overview=false&steps=false`;
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(),10000);
+  try {
+    const response=await fetch(url,{headers:{Accept:"application/json"},signal:controller.signal});
+    if(!response.ok) throw new Error("Routing service unavailable.");
+    const route=parseOsrmRouteResponse(await response.json());
+    return {distanceKm:route.distanceKm,durationMinutes:Math.max(1,route.durationMinutes)};
+  } catch {
+    throw new Error("Kida could not recalculate the road route. Please retry when routing is available.");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Request a server-priced change to an active trip. The assigned Captain must accept before booking data changes. */
+export const requestMyTripChange = createServerFn({ method: "POST" })
+  .validator((input: unknown) => tripChangeSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql=await getSql();
+    const rows=await sql.query<{
+      id:string;status:BookingStatus;vehicle_id:string;pickup:Record<string,unknown>;
+      dropoff:Record<string,unknown>;stops:Record<string,unknown>[];
+      is_free_ride:boolean;captain_user_id:string|null;client_fare_preview:Record<string,unknown>|null;
+    }>(`
+      select id::text as id,status,vehicle_id,pickup,dropoff,stops,is_free_ride,
+             captain_user_id,client_fare_preview
+        from public.kida_bookings
+       where id=$1::uuid and user_id=$2 and status='in_progress'
+       limit 1
+    `,[data.bookingId,context.userId]);
+    const booking=rows[0];
+    if(!booking || !booking.captain_user_id) throw new Error("Route changes are available only during your active Kida trip.");
+    if(booking.is_free_ride || Number(booking.client_fare_preview?.discount ?? 0)>0 || Boolean(booking.client_fare_preview?.promoCode)) {
+      throw new Error("This trip has a promotional fare. Kida operations must confirm the revised promotional fare before a route change can be requested.");
+    }
+    const perKm:Record<string,number>={bike:15,auto:20,mini:25,xl:30};
+    const rate=perKm[booking.vehicle_id];
+    if(!rate) throw new Error("A server-approved fare rate is not configured for this vehicle category.");
+    const pickup=selectionSchema.parse(booking.pickup);
+    const currentDrop=selectionSchema.parse(booking.dropoff);
+    const currentStops=Array.isArray(booking.stops)?booking.stops.map(stop=>selectionSchema.parse(stop)):[];
+    let proposedDrop=currentDrop;
+    let proposedStops=currentStops;
+    if(data.changeType==="add_stop") {
+      if(currentStops.length>=3) throw new Error("A ride can have up to three additional stops.");
+      proposedStops=[...currentStops,data.selection];
+    } else {
+      if(data.selection.placeId===pickup.placeId && data.selection.landmarkId===pickup.landmarkId) {
+        throw new Error("The destination cannot be the same as the pickup.");
+      }
+      proposedDrop=data.selection;
+    }
+    const oldRoute=await getVerifiedRouteQuote([pickup,...currentStops,currentDrop]);
+    const proposedRoute=await getVerifiedRouteQuote([pickup,...proposedStops,proposedDrop]);
+    const oldFare=Math.round(rate*oldRoute.distanceKm);
+    const newFare=Math.round(rate*proposedRoute.distanceKm);
+    const created=await sql.query<{id:string;status:string}>(`
+      insert into public.kida_trip_change_requests
+        (booking_id,customer_user_id,captain_user_id,change_type,requested_selection,
+         proposed_dropoff,proposed_stops,proposed_distance_km,proposed_minutes,proposed_fare_paise)
+      values ($1::uuid,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,$9,$10)
+      returning id::text as id,status
+    `,[
+      booking.id,context.userId,booking.captain_user_id,data.changeType,
+      JSON.stringify(data.selection),JSON.stringify(proposedDrop),JSON.stringify(proposedStops),
+      proposedRoute.distanceKm,proposedRoute.durationMinutes,newFare*100,
+    ]);
+    if(!created[0]) throw new Error("Your route change request could not be submitted.");
+    return {
+      id:created[0].id,status:created[0].status,
+      oldFare,newFare,fareDelta:newFare-oldFare,
+      distanceKm:proposedRoute.distanceKm,durationMinutes:proposedRoute.durationMinutes,
+      message:"The revised route and fare have been sent to your Captain. The booking changes only after Captain acceptance.",
+    };
+  });
