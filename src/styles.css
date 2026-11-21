@@ -181,3 +181,15 @@ button:focus-visible, [role="button"]:focus-visible, input:focus-visible, textar
   border-radius: 0.75rem;
   box-shadow: 0 3px 12px rgb(23 23 23 / 12%);
 }
+
+
+/* Accessibility baseline: keyboard focus and reduced-motion support across Kida. */
+:focus-visible { outline: 3px solid #1d4ed8; outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

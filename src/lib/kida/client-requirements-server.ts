@@ -350,3 +350,71 @@ export const getSharedKidaTrip = createServerFn({ method: "GET" })
     if (!rows[0]) throw new Error("This trip link has expired or was revoked.");
     return rows[0];
   });
+
+
+const grievanceUpdateSchema = z.object({
+  ticketId: z.string().uuid(),
+  status: z.enum(["open","in_review","resolved","closed"]),
+  priority: z.enum(["low","normal","high","urgent"]),
+  note: z.string().trim().max(2000).default(""),
+}).strict();
+
+export const listOperationsGrievances = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const sql = await getSql();
+    await requireAdmin(sql, context.userId);
+    return sql.query<{
+      id: string; customer_name: string; customer_email: string; phone_e164: string | null;
+      booking_id: string | null; topic: string; message: string; status: string; priority: string;
+      assigned_to_name: string | null; resolution_note: string | null; created_at: string;
+      updated_at: string; resolved_at: string | null;
+    }>(`
+      select t.id::text as id,
+             coalesce(nullif(p.display_name,''),nullif(u."name",''),'Kida customer') as customer_name,
+             u."email" as customer_email, p.phone_e164,
+             t.booking_id::text as booking_id, t.topic, t.message, t.status, t.priority,
+             assignee."name" as assigned_to_name, t.resolution_note,
+             t.created_at::text as created_at, t.updated_at::text as updated_at,
+             t.resolved_at::text as resolved_at
+        from public.kida_support_tickets t
+        join public."user" u on u."id"=t.user_id
+        left join public.kida_profiles p on p.user_id=t.user_id
+        left join public."user" assignee on assignee."id"=t.assigned_to
+       order by case t.priority when 'urgent' then 0 when 'high' then 1 when 'normal' then 2 else 3 end,
+                case t.status when 'open' then 0 when 'in_review' then 1 when 'resolved' then 2 else 3 end,
+                t.created_at desc
+       limit 250
+    `);
+  });
+
+export const updateOperationsGrievance = createServerFn({ method: "POST" })
+  .validator((input: unknown) => grievanceUpdateSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    await requireAdmin(sql, context.userId);
+    const rows = await sql.query<{ id: string; status: string; priority: string }>(`
+      with before_state as materialized (
+        select id,status,priority from public.kida_support_tickets where id=$1::uuid for update
+      ), changed as (
+        update public.kida_support_tickets t
+           set status=$2, priority=$3,
+               assigned_to=case when $2 in ('in_review','resolved','closed') then $4 else t.assigned_to end,
+               resolution_note=case when length($5)>0 then $5 else t.resolution_note end,
+               resolved_at=case when $2 in ('resolved','closed') then coalesce(t.resolved_at,now()) else null end,
+               updated_at=now()
+          from before_state b where t.id=b.id
+        returning t.id,t.status,t.priority
+      ), audit as (
+        insert into public.kida_support_ticket_events
+          (ticket_id,actor_user_id,previous_status,new_status,previous_priority,new_priority,note)
+        select c.id,$4,b.status,c.status,b.priority,c.priority,$5
+          from changed c join before_state b on b.id=c.id
+        returning ticket_id
+      )
+      select id::text as id,status,priority from changed
+    `, [data.ticketId,data.status,data.priority,context.userId,data.note]);
+    if (!rows[0]) throw new Error("Grievance case not found.");
+    return rows[0];
+  });

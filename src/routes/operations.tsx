@@ -4,6 +4,7 @@ import { EmailPasswordForm } from "@/components/auth/EmailPasswordForm";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getOperationsDashboard, reviewCaptainApplication } from "@/lib/kida/operations-server";
 import { CampaignManager } from "@/components/kida/CampaignManager";
+import { SupportDesk } from "@/components/kida/SupportDesk";
 import {
   emptyCaptainDocumentChecks,
   isCaptainApplicationApprovalReady,
@@ -375,6 +376,8 @@ function OperationsDashboard() {
             </div>
           )}
         </section>
+
+        <SupportDesk />
 
         <CampaignManager />
 
