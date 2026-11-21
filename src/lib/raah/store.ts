@@ -194,6 +194,8 @@ interface RaahState {
   tickets: Ticket[];
   legalDoc: LegalDoc;
   placeTarget: PlaceTarget;
+  tripChangeContext: { bookingId: string; changeType: "add_stop" | "change_destination" } | null;
+  tripChangeSelection: { bookingId: string; changeType: "add_stop" | "change_destination"; selection: Selection } | null;
   toast: string;
   payFailed: boolean;
   sosArmed: boolean;
@@ -208,6 +210,8 @@ interface RaahState {
   setName: (name: string) => void;
   setPhoto: (photo: string) => void;
   setPlaceTarget: (target: PlaceTarget) => void;
+  beginTripChange: (bookingId: string, changeType: "add_stop" | "change_destination") => void;
+  clearTripChangeSelection: () => void;
   setPickupLocation: (selection: Selection) => void;
   setServiceMode: (mode: ServiceMode) => void;
   choose: (selection: Selection) => void;
@@ -307,6 +311,8 @@ export const useRaah = create<RaahState>()(
       tickets: [],
       legalDoc: "terms",
       placeTarget: "drop",
+      tripChangeContext: null,
+      tripChangeSelection: null,
       toast: "",
       payFailed: false,
       sosArmed: false,
@@ -342,6 +348,14 @@ export const useRaah = create<RaahState>()(
       setServiceMode: (serviceMode) => set({ serviceMode, drop: serviceMode === "ride" ? get().drop : null, stops: serviceMode === "ride" ? get().stops : [] }),
       choose: (selection) => {
         const s = get();
+        if (s.tripChangeContext) {
+          set({
+            tripChangeSelection: { ...s.tripChangeContext, selection },
+            tripChangeContext: null,
+          });
+          get().back();
+          return;
+        }
         if (s.placeTarget === "stop") {
           if (s.stops.length >= 3) {
             set({ toast: "A ride can have up to three additional stops." });
