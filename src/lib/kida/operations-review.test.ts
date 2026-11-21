@@ -22,6 +22,8 @@ test("Captain approval requires every original-document check", () => {
 
   assert.equal(isCaptainApplicationApprovalReady(checks), false);
   checks.vehicleRegistration = true;
+  assert.equal(isCaptainApplicationApprovalReady(checks), false);
+  checks.captainPhoto = true;
   assert.equal(isCaptainApplicationApprovalReady(checks), true);
 });
 
