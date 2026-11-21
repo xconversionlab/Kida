@@ -112,6 +112,8 @@ function mapBooking(booking: BackendBooking): Ride {
       plate: booking.captain_registration_number ?? undefined,
       vehicle: captainVehicle,
       colour: booking.captain_vehicle_colour ?? undefined,
+      photoUrl: booking.captain_photo_url ?? undefined,
+      licenceIdentifier: booking.captain_licence_identifier ?? undefined,
     } : null,
     captainLocation,
     createdAt: booking.created_at,
