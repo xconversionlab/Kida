@@ -24,6 +24,7 @@ const DOCUMENTS: { key: keyof CaptainDocumentChecks; label: string; description:
   { key: "insurance", label: "Vehicle insurance", description: "Current and valid insurance checked" },
   { key: "fitnessPuc", label: "Fitness / PUC", description: "Required fitness and pollution documents checked" },
   { key: "vehicleRegistration", label: "Vehicle registration", description: "Registration details match the actual vehicle" },
+  { key: "captainPhoto", label: "Captain photograph", description: "Photo matches the applicant and is suitable for the customer identity card" },
 ];
 
 function money(paise: string | null): string {
@@ -458,6 +459,23 @@ function OperationsDashboard() {
                   <Info label="Kida account" value={selected.account_name || "Account holder"} />
                   <Info label="Application received" value={dateLabel(selected.submitted_at)} />
                   <Info label="Application ID" value={selected.id} mono />
+                  <Info label="Driving licence ID / ULIN" value={selected.licence_identifier} />
+                  <Info label="Driving licence expiry" value={selected.licence_expires_on} />
+                  <Info label="Commercial permit expiry" value={selected.commercial_permit_expires_on} />
+                  <Info label="Insurance expiry" value={selected.insurance_expires_on} />
+                  <Info label="Fitness expiry" value={selected.fitness_expires_on || "Not supplied / not applicable"} />
+                  <Info label="PUC expiry" value={selected.puc_expires_on || "Not supplied / not applicable"} />
+                </div>
+                <div className="mt-5 border-t border-neutral-100 pt-4">
+                  <Eyebrow>Customer-facing Captain photograph</Eyebrow>
+                  <div className="mt-3 flex items-center gap-4">
+                    <img src={selected.photo_url} alt={selected.full_name + " Captain applicant photograph"} className="size-20 rounded-2xl border border-neutral-200 object-cover" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">Applicant-hosted image</p>
+                      <a className="break-all text-xs text-blue-700 underline" href={selected.photo_url} target="_blank" rel="noreferrer">Open photo source</a>
+                      <p className="mt-1 text-xs text-neutral-500">Check that the photo is authentic and suitable before marking the Captain photograph as verified.</p>
+                    </div>
+                  </div>
                 </div>
                 <div className="mt-5 border-t border-neutral-100 pt-4">
                   <Eyebrow>Vehicle information</Eyebrow>
@@ -513,7 +531,7 @@ function OperationsDashboard() {
                 <Panel>
                   <Eyebrow>Operations decision</Eyebrow>
                   <h3 className="mt-1 text-lg font-black">Review this application</h3>
-                  <p className="mt-1 text-sm leading-6 text-neutral-600">Check the original documents in person before approving. Kida does not currently collect document uploads in this application.</p>
+                  <p className="mt-1 text-sm leading-6 text-neutral-600">Check the original documents in person and verify the hosted Captain photograph before approving. Kida does not yet store document files itself.</p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <ActionButton variant="approve" onClick={() => beginDecision("approved")}>Approve Captain</ActionButton>
                     <ActionButton variant="light" onClick={() => beginDecision("needs_changes")}>Request changes</ActionButton>
