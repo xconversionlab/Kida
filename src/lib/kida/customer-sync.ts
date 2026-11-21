@@ -115,7 +115,6 @@ function mapBooking(booking: BackendBooking): Ride {
       photoUrl: booking.captain_photo_url ?? undefined,
       licenceIdentifier: booking.captain_licence_identifier ?? undefined,
       rating: booking.captain_average_rating == null ? undefined : Number(booking.captain_average_rating),
-      trips: booking.captain_rating_count ?? 0,
       ratingCount: booking.captain_rating_count ?? 0,
     } : null,
     captainLocation,
