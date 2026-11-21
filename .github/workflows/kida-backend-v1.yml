@@ -5,25 +5,27 @@ on:
     branches:
       - "backend-v1/customer-data"
       - "feature/open-maps"
+      - "feature/captain-app"
     paths:
       - "src/**"
       - "migrations/**"
       - "scripts/**"
       - "package.json"
       - "package-lock.json"
-      - ".grok/app-env.json"
+      - "AGENTS.md"
       - ".github/workflows/kida-backend-v1.yml"
   pull_request:
     branches:
       - "client-approval/customer-app"
       - "backend-v1/customer-data"
+      - "feature/open-maps"
     paths:
       - "src/**"
       - "migrations/**"
       - "scripts/**"
       - "package.json"
       - "package-lock.json"
-      - ".grok/app-env.json"
+      - "AGENTS.md"
       - ".github/workflows/kida-backend-v1.yml"
 
 permissions:
@@ -48,6 +50,7 @@ jobs:
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
 
       - name: Commit lockfile repair when needed
+        if: github.event_name == 'push'
         run: |
           if ! git diff --quiet -- package-lock.json; then
             git config user.name "github-actions[bot]"
@@ -67,6 +70,7 @@ jobs:
         run: npm run build
 
       - name: Commit generated TanStack route tree when it changes
+        if: github.event_name == 'push'
         run: |
           if ! git diff --quiet -- src/routeTree.gen.ts; then
             git config user.name "github-actions[bot]"

@@ -7,6 +7,7 @@ on:
       - "client-approval/customer-app"
       - "backend-v1/customer-data"
       - "feature/open-maps"
+      - "feature/captain-app"
     paths:
       - "android-wrapper/**"
       - "src/**"

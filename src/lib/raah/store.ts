@@ -194,6 +194,8 @@ interface RaahState {
   tickets: Ticket[];
   legalDoc: LegalDoc;
   placeTarget: PlaceTarget;
+  tripChangeContext: { bookingId: string; changeType: "add_stop" | "change_destination" } | null;
+  tripChangeSelection: { bookingId: string; changeType: "add_stop" | "change_destination"; selection: Selection } | null;
   toast: string;
   payFailed: boolean;
   sosArmed: boolean;
@@ -208,6 +210,8 @@ interface RaahState {
   setName: (name: string) => void;
   setPhoto: (photo: string) => void;
   setPlaceTarget: (target: PlaceTarget) => void;
+  beginTripChange: (bookingId: string, changeType: "add_stop" | "change_destination") => void;
+  clearTripChangeSelection: () => void;
   setPickupLocation: (selection: Selection) => void;
   setServiceMode: (mode: ServiceMode) => void;
   choose: (selection: Selection) => void;
@@ -220,7 +224,7 @@ interface RaahState {
   setPromoInput: (value: string) => void;
   setPromo: (promo: PromoResult | null) => void;
   setWhen: (when: string) => void;
-  confirmBooking: (routeDistanceKm?: number, roadDurationMinutes?: number, routePath?: RouteCoordinate[], backendBooking?: { id: string; status: "requested"; isFreeRide?: boolean }) => void;
+  confirmBooking: (routeDistanceKm?: number, roadDurationMinutes?: number, routePath?: RouteCoordinate[], backendBooking?: { id: string; status: "requested"; isFreeRide?: boolean; tripPin?: string }) => void;
   assignDriver: () => void;
   tickRide: () => void;
   completeRide: () => void;
@@ -307,6 +311,8 @@ export const useRaah = create<RaahState>()(
       tickets: [],
       legalDoc: "terms",
       placeTarget: "drop",
+      tripChangeContext: null,
+      tripChangeSelection: null,
       toast: "",
       payFailed: false,
       sosArmed: false,
@@ -338,10 +344,27 @@ export const useRaah = create<RaahState>()(
       },
       setPhoto: (photo) => set({ photo }),
       setPlaceTarget: (placeTarget) => set({ placeTarget }),
+      beginTripChange: (bookingId, changeType) => {
+        set({
+          tripChangeContext: { bookingId, changeType },
+          tripChangeSelection: null,
+          placeTarget: changeType === "add_stop" ? "stop" : "drop",
+        });
+        get().open("pickup");
+      },
+      clearTripChangeSelection: () => set({ tripChangeSelection: null, tripChangeContext: null }),
       setPickupLocation: (pickup) => set({ pickup }),
       setServiceMode: (serviceMode) => set({ serviceMode, drop: serviceMode === "ride" ? get().drop : null, stops: serviceMode === "ride" ? get().stops : [] }),
       choose: (selection) => {
         const s = get();
+        if (s.tripChangeContext) {
+          set({
+            tripChangeSelection: { ...s.tripChangeContext, selection },
+            tripChangeContext: null,
+          });
+          get().back();
+          return;
+        }
         if (s.placeTarget === "stop") {
           if (s.stops.length >= 3) {
             set({ toast: "A ride can have up to three additional stops." });
@@ -441,25 +464,25 @@ export const useRaah = create<RaahState>()(
           source: "app",
           messages: [],
           stops: [...s.stops],
-          tripPin: String(1000 + Math.floor(Math.random() * 9000)),
+          tripPin: backendBooking?.tripPin ?? String(1000 + Math.floor(Math.random() * 9000)),
           routePath: routePath?.length ? routePath : undefined,
           womenDriverRequested: s.womenDriverPreference,
         };
         set({
           rides: [ride, ...s.rides],
-          activeRideId: backendBooking ? null : ride.id,
+          activeRideId: scheduled ? null : ride.id,
           selectedRideId: ride.id,
           usedPromos: s.promo?.ok && s.promo.code ? [...s.usedPromos, s.promo.code] : s.usedPromos,
           promo: null,
           promoInput: "",
           when: "now",
           stops: [],
-          screen: backendBooking || scheduled ? "history" : "assigning",
+          screen: scheduled ? "history" : "assigning",
           stack: [],
           toast: backendBooking?.isFreeRide
             ? "Your sixth-ride reward is reserved. Kida will fund the Captain payout."
             : backendBooking
-              ? "Your booking request is saved to your Kida account. Captain matching is not active yet."
+              ? "Your Kida ride request is live. We will update this screen when a Captain accepts it."
               : t(s.lang, "booked"),
         });
         if (s.voiceOn) speak(s.lang, t(s.lang, "booked"));

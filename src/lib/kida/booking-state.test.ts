@@ -21,6 +21,10 @@ test("booking follows the supported lifecycle", () => {
   }
 });
 
+test("a Captain may accept a just-created request without a separate searching event", () => {
+  assert.equal(canTransitionBooking("requested", "accepted"), true);
+});
+
 test("terminal statuses cannot transition again", () => {
   for (const status of ["completed", "cancelled", "expired", "no_captain"] as const) {
     assert.equal(canTransitionBooking(status, "searching"), false);

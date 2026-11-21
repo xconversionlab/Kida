@@ -1,9 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import type { BookingStatus } from "./booking-state";
 import { parseOsrmRouteResponse } from "./osrm-route";
+import { createTripPinCredentials, decryptTripPin } from "./trip-pin";
 
 const languageSchema = z.enum(["en", "hi", "ta", "te", "kn", "ml", "bn", "mr", "gu", "pa"]);
 
@@ -65,7 +67,12 @@ const createBookingSchema = z.object({
   scheduledFor: z.string().datetime().nullable().optional(),
   farePreview: farePreviewSchema.nullable().optional(),
   customerRewardCode: z.enum(["KIDA_6TH_RIDE_FREE"]).nullable().optional(),
-}).strict();
+  tripPin: z.string().regex(/^\\d{4}$/).optional(),
+}).strict().superRefine((data, ctx) => {
+  if (data.serviceMode === "ride" && !data.tripPin) {
+    ctx.addIssue({ code: "custom", path: ["tripPin"], message: "A four-digit trip PIN is required for every ride booking." });
+  }
+});
 
 const profileSchema = z.object({
   displayName: z.string().trim().min(1).max(80),
@@ -207,15 +214,25 @@ export const createMyBooking = createServerFn({ method: "POST" })
     const sql = await getSql();
 
     // Return a prior idempotent request before checking reward eligibility again.
-    const existing = await sql.query<Pick<BookingRow, "id" | "client_request_id" | "status" | "created_at" | "is_free_ride">>(
+    const existing = await sql.query<{
+      id: string;
+      client_request_id: string;
+      status: BookingStatus;
+      created_at: string;
+      is_free_ride: boolean;
+      trip_pin_ciphertext: string | null;
+    }>(
       `select id::text as id, client_request_id::text as client_request_id,
-              status, created_at::text as created_at, is_free_ride
+              status, created_at::text as created_at, is_free_ride, trip_pin_ciphertext
          from public.kida_bookings
         where user_id = $1 and client_request_id = $2::uuid
         limit 1`,
       [context.userId, data.clientRequestId],
     );
-    if (existing[0]) return existing[0];
+    if (existing[0]) {
+      const { trip_pin_ciphertext, ...booking } = existing[0];
+      return { ...booking, tripPin: decryptTripPin(booking.id, trip_pin_ciphertext) };
+    }
 
     let customerRewardCycle: number | null = null;
     if (data.customerRewardCode === "KIDA_6TH_RIDE_FREE") {
@@ -277,21 +294,33 @@ export const createMyBooking = createServerFn({ method: "POST" })
     const stops = JSON.stringify(data.stops.map(persistSelection));
     const farePreview = data.farePreview ? JSON.stringify(data.farePreview) : null;
     const scheduledFor = data.scheduledFor ?? null;
+    const bookingId = randomUUID();
+    const pinCredentials = data.tripPin
+      ? createTripPinCredentials(bookingId, data.tripPin)
+      : null;
 
-    // Insert + initial audit event are one SQL statement. A repeated
-    // clientRequestId returns the existing row without creating a duplicate.
-    const rows = await sql.query<Pick<BookingRow, "id" | "client_request_id" | "status" | "created_at" | "is_free_ride">>(
+    // Insert, customer trip PIN credentials and first audit event are one SQL
+    // statement. A Captain can never accept a ride before PIN verification is ready.
+    const rows = await sql.query<{
+      id: string;
+      client_request_id: string;
+      status: BookingStatus;
+      created_at: string;
+      is_free_ride: boolean;
+      trip_pin_ciphertext: string | null;
+    }>(
       `with inserted as (
          insert into public.kida_bookings
-           (user_id, client_request_id, service_mode, vehicle_id,
+           (id, user_id, client_request_id, service_mode, vehicle_id,
             payment_method, women_driver_requested,
             pickup, dropoff, stops, scheduled_for, client_fare_preview,
-            is_free_ride, customer_reward_cycle)
-         values ($1, $2::uuid, $3, $4, $5, $6,
-                 $7::jsonb, $8::jsonb, $9::jsonb, $10::timestamptz, $11::jsonb,
-                 $12, $13)
+            is_free_ride, customer_reward_cycle, trip_pin_hash, trip_pin_ciphertext)
+         values ($1::uuid, $2, $3::uuid, $4, $5,
+                 $6, $7,
+                 $8::jsonb, $9::jsonb, $10::jsonb, $11::timestamptz, $12::jsonb,
+                 $13, $14, $15, $16)
          on conflict do nothing
-         returning id, user_id, client_request_id, status, created_at, is_free_ride
+         returning id, user_id, client_request_id, status, created_at, is_free_ride, trip_pin_ciphertext
        ),
        audit as (
          insert into public.kida_booking_events
@@ -302,16 +331,18 @@ export const createMyBooking = createServerFn({ method: "POST" })
          returning booking_id
        )
        select id::text as id, client_request_id::text as client_request_id,
-              status, created_at::text as created_at, is_free_ride
+              status, created_at::text as created_at, is_free_ride, trip_pin_ciphertext
          from inserted
        union all
-       select b.id::text, b.client_request_id::text, b.status, b.created_at::text, b.is_free_ride
+       select b.id::text, b.client_request_id::text, b.status, b.created_at::text,
+              b.is_free_ride, b.trip_pin_ciphertext
          from public.kida_bookings b
-        where b.user_id = $1
-          and b.client_request_id = $2::uuid
+        where b.user_id = $2
+          and b.client_request_id = $3::uuid
           and not exists (select 1 from inserted)
        limit 1`,
       [
+        bookingId,
         context.userId,
         data.clientRequestId,
         data.serviceMode,
@@ -325,10 +356,13 @@ export const createMyBooking = createServerFn({ method: "POST" })
         farePreview,
         Boolean(customerRewardCycle),
         customerRewardCycle,
+        pinCredentials?.tripPinHash ?? null,
+        pinCredentials?.tripPinCiphertext ?? null,
       ],
     );
     if (!rows[0]) throw new Error("Unable to create booking");
-    return rows[0];
+    const { trip_pin_ciphertext, ...booking } = rows[0];
+    return { ...booking, tripPin: decryptTripPin(booking.id, trip_pin_ciphertext) };
   });
 
 export const listMyBookings = createServerFn({ method: "GET" })
@@ -506,4 +540,133 @@ export const listMySupportTickets = createServerFn({ method: "GET" })
         limit 100`,
       [context.userId],
     );
+  });
+
+const captainRatingSchema = z.object({
+  bookingId: z.string().uuid(),
+  rating: z.number().int().min(1).max(5),
+  feedback: z.string().trim().max(1000).default(""),
+}).strict();
+
+/** Save or update the signed-in customer's rating for their own completed, assigned ride. */
+export const rateMyCompletedRide = createServerFn({ method: "POST" })
+  .validator((input: unknown) => captainRatingSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql = await getSql();
+    const rows = await sql.query<{
+      booking_id: string;
+      rating: number;
+      feedback: string;
+      updated_at: string;
+    }>(`
+      insert into public.kida_captain_ratings
+        (booking_id, customer_user_id, captain_user_id, rating, feedback)
+      select b.id, b.user_id, b.captain_user_id, $3, $4
+        from public.kida_bookings b
+       where b.id=$1::uuid
+         and b.user_id=$2
+         and b.status='completed'
+         and b.captain_user_id is not null
+      on conflict (booking_id) do update
+        set rating=excluded.rating,
+            feedback=excluded.feedback,
+            updated_at=now()
+      where public.kida_captain_ratings.customer_user_id=excluded.customer_user_id
+      returning booking_id::text as booking_id, rating, feedback, updated_at::text as updated_at
+    `, [data.bookingId, context.userId, data.rating, data.feedback]);
+    if (!rows[0]) {
+      throw new Error("A Captain rating can be saved only for your own completed Kida ride.");
+    }
+    return rows[0];
+  });
+
+const tripChangeSchema = z.object({
+  bookingId: z.string().uuid(),
+  changeType: z.enum(["add_stop","change_destination"]),
+  selection: selectionSchema,
+}).strict();
+
+async function getVerifiedRouteQuote(points: Array<{lat:number;lng:number}>): Promise<{distanceKm:number;durationMinutes:number}> {
+  if (points.length < 2) throw new Error("A pickup and destination are required.");
+  const configuredBaseUrl = process.env.KIDA_OSRM_BASE_URL;
+  if (!configuredBaseUrl) throw new Error("Kida road routing is not configured for this environment.");
+  const baseUrl = configuredBaseUrl.endsWith("/") ? configuredBaseUrl.slice(0,-1) : configuredBaseUrl;
+  const coordinates = points.map(point=>`${point.lng},${point.lat}`).join(";");
+  const url = `${baseUrl}/route/v1/driving/${coordinates}?overview=false&steps=false`;
+  const controller = new AbortController();
+  const timeout = setTimeout(()=>controller.abort(),10000);
+  try {
+    const response=await fetch(url,{headers:{Accept:"application/json"},signal:controller.signal});
+    if(!response.ok) throw new Error("Routing service unavailable.");
+    const route=parseOsrmRouteResponse(await response.json());
+    return {distanceKm:route.distanceKm,durationMinutes:Math.max(1,route.durationMinutes)};
+  } catch {
+    throw new Error("Kida could not recalculate the road route. Please retry when routing is available.");
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/** Request a server-priced change to an active trip. The assigned Captain must accept before booking data changes. */
+export const requestMyTripChange = createServerFn({ method: "POST" })
+  .validator((input: unknown) => tripChangeSchema.parse(input))
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const sql=await getSql();
+    const rows=await sql.query<{
+      id:string;status:BookingStatus;vehicle_id:string;pickup:Record<string,unknown>;
+      dropoff:Record<string,unknown>;stops:Record<string,unknown>[];
+      is_free_ride:boolean;captain_user_id:string|null;client_fare_preview:Record<string,unknown>|null;
+    }>(`
+      select id::text as id,status,vehicle_id,pickup,dropoff,stops,is_free_ride,
+             captain_user_id,client_fare_preview
+        from public.kida_bookings
+       where id=$1::uuid and user_id=$2 and status='in_progress'
+       limit 1
+    `,[data.bookingId,context.userId]);
+    const booking=rows[0];
+    if(!booking || !booking.captain_user_id) throw new Error("Route changes are available only during your active Kida trip.");
+    if(booking.is_free_ride || Number(booking.client_fare_preview?.discount ?? 0)>0 || Boolean(booking.client_fare_preview?.promoCode)) {
+      throw new Error("This trip has a promotional fare. Kida operations must confirm the revised promotional fare before a route change can be requested.");
+    }
+    const perKm:Record<string,number>={bike:15,auto:20,mini:25,xl:30};
+    const rate=perKm[booking.vehicle_id];
+    if(!rate) throw new Error("A server-approved fare rate is not configured for this vehicle category.");
+    const pickup=selectionSchema.parse(booking.pickup);
+    const currentDrop=selectionSchema.parse(booking.dropoff);
+    const currentStops=Array.isArray(booking.stops)?booking.stops.map(stop=>selectionSchema.parse(stop)):[];
+    let proposedDrop=currentDrop;
+    let proposedStops=currentStops;
+    if(data.changeType==="add_stop") {
+      if(currentStops.length>=3) throw new Error("A ride can have up to three additional stops.");
+      proposedStops=[...currentStops,data.selection];
+    } else {
+      if(data.selection.placeId===pickup.placeId && data.selection.landmarkId===pickup.landmarkId) {
+        throw new Error("The destination cannot be the same as the pickup.");
+      }
+      proposedDrop=data.selection;
+    }
+    const oldRoute=await getVerifiedRouteQuote([pickup,...currentStops,currentDrop]);
+    const proposedRoute=await getVerifiedRouteQuote([pickup,...proposedStops,proposedDrop]);
+    const oldFare=Math.round(rate*oldRoute.distanceKm);
+    const newFare=Math.round(rate*proposedRoute.distanceKm);
+    const created=await sql.query<{id:string;status:string}>(`
+      insert into public.kida_trip_change_requests
+        (booking_id,customer_user_id,captain_user_id,change_type,requested_selection,
+         proposed_dropoff,proposed_stops,proposed_distance_km,proposed_minutes,proposed_fare_paise)
+      values ($1::uuid,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,$9,$10)
+      returning id::text as id,status
+    `,[
+      booking.id,context.userId,booking.captain_user_id,data.changeType,
+      JSON.stringify(data.selection),JSON.stringify(proposedDrop),JSON.stringify(proposedStops),
+      proposedRoute.distanceKm,proposedRoute.durationMinutes,newFare*100,
+    ]);
+    if(!created[0]) throw new Error("Your route change request could not be submitted.");
+    return {
+      id:created[0].id,status:created[0].status,
+      oldFare,newFare,fareDelta:newFare-oldFare,
+      distanceKm:proposedRoute.distanceKm,durationMinutes:proposedRoute.durationMinutes,
+      message:"The revised route and fare have been sent to your Captain. The booking changes only after Captain acceptance.",
+    };
   });

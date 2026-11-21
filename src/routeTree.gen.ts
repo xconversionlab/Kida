@@ -10,7 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CaptainRouteImport } from './routes/captain'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OperationsRouteImport } from './routes/operations'
+import { Route as OperationsDemoRouteImport } from './routes/operations_.demo'
+import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -18,9 +22,29 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CaptainRoute = CaptainRouteImport.update({
+  id: '/captain',
+  path: '/captain',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperationsRoute = OperationsRouteImport.update({
+  id: '/operations',
+  path: '/operations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperationsDemoRoute = OperationsDemoRouteImport.update({
+  id: '/operations_/demo',
+  path: '/operations/demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ShareTokenRoute = ShareTokenRouteImport.update({
+  id: '/share/$token',
+  path: '/share/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -31,31 +55,69 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/captain': typeof CaptainRoute
   '/login': typeof LoginRoute
+  '/operations': typeof OperationsRoute
+  '/operations/demo': typeof OperationsDemoRoute
+  '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/captain': typeof CaptainRoute
   '/login': typeof LoginRoute
+  '/operations': typeof OperationsRoute
+  '/operations/demo': typeof OperationsDemoRoute
+  '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/captain': typeof CaptainRoute
   '/login': typeof LoginRoute
+  '/operations': typeof OperationsRoute
+  '/operations_/demo': typeof OperationsDemoRoute
+  '/share/$token': typeof ShareTokenRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/api/auth/$'
+  fullPaths:
+    | '/'
+    | '/captain'
+    | '/login'
+    | '/operations'
+    | '/operations/demo'
+    | '/share/$token'
+    | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/api/auth/$'
-  id: '__root__' | '/' | '/login' | '/api/auth/$'
+  to:
+    | '/'
+    | '/captain'
+    | '/login'
+    | '/operations'
+    | '/operations/demo'
+    | '/share/$token'
+    | '/api/auth/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/captain'
+    | '/login'
+    | '/operations'
+    | '/operations_/demo'
+    | '/share/$token'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CaptainRoute: typeof CaptainRoute
   LoginRoute: typeof LoginRoute
+  OperationsRoute: typeof OperationsRoute
+  OperationsDemoRoute: typeof OperationsDemoRoute
+  ShareTokenRoute: typeof ShareTokenRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -68,11 +130,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/captain': {
+      id: '/captain'
+      path: '/captain'
+      fullPath: '/captain'
+      preLoaderRoute: typeof CaptainRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operations': {
+      id: '/operations'
+      path: '/operations'
+      fullPath: '/operations'
+      preLoaderRoute: typeof OperationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operations_/demo': {
+      id: '/operations_/demo'
+      path: '/operations/demo'
+      fullPath: '/operations/demo'
+      preLoaderRoute: typeof OperationsDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/share/$token': {
+      id: '/share/$token'
+      path: '/share/$token'
+      fullPath: '/share/$token'
+      preLoaderRoute: typeof ShareTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -87,7 +177,11 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CaptainRoute: CaptainRoute,
   LoginRoute: LoginRoute,
+  OperationsRoute: OperationsRoute,
+  OperationsDemoRoute: OperationsDemoRoute,
+  ShareTokenRoute: ShareTokenRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

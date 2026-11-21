@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { cancelMyBooking, createMySupportTicket } from "@/lib/kida/server";
+import { cancelMyBooking, createMySupportTicket, rateMyCompletedRide, requestMyTripChange } from "@/lib/kida/server";
+import { createLiveTripShare } from "@/lib/kida/client-requirements-server";
 import { MessageCircle, Phone, Share2, ShieldAlert } from "lucide-react";
 import { company } from "@/lib/raah/company";
 import { payLabel, vehicleLabel } from "@/lib/raah/labels";
@@ -17,23 +18,85 @@ export function TrackingScreen() {
   const tick = useRaah((s) => s.tickRide);
   const complete = useRaah((s) => s.completeRide);
   const open = useRaah((s) => s.open);
+  const beginTripChange = useRaah((s) => s.beginTripChange);
+  const tripChangeSelection = useRaah((s) => s.tripChangeSelection);
+  const clearTripChangeSelection = useRaah((s) => s.clearTripChangeSelection);
+  const [changeBusy, setChangeBusy] = useState(false);
+  const [changeNotice, setChangeNotice] = useState("");
+  const [changeError, setChangeError] = useState("");
   const [why, setWhy] = useState(false);
+  const backendRide = Boolean(ride?.backendBookingId);
+
   useEffect(() => {
+    if (backendRide) return;
     const id = window.setInterval(() => tick(), 800);
     return () => window.clearInterval(id);
-  }, [tick]);
-  if (!ride || !ride.driver) {
+  }, [tick, backendRide]);
+
+  useEffect(() => {
+    if (!tripChangeSelection) return;
+    const pending = tripChangeSelection;
+    let active = true;
+    setChangeBusy(true);
+    setChangeError("");
+    setChangeNotice("");
+    void requestMyTripChange({
+      data: {
+        bookingId: pending.bookingId,
+        changeType: pending.changeType,
+        selection: pending.selection,
+      },
+    }).then((result) => {
+      if (!active) return;
+      const amount = new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(result.newFare);
+      const delta = result.fareDelta === 0 ? "no fare change" : result.fareDelta > 0 ? `fare increases by ₹${result.fareDelta}` : `fare decreases by ₹${Math.abs(result.fareDelta)}`;
+      setChangeNotice(`Request sent to your Captain. Proposed fare: ${amount} (${delta}). The route and fare will change only after Captain acceptance.`);
+    }).catch((cause) => {
+      if (active) setChangeError(cause instanceof Error ? cause.message : "Your route-change request could not be sent.");
+    }).finally(() => {
+      clearTripChangeSelection();
+      if (active) setChangeBusy(false);
+    });
+    return () => { active = false; };
+  }, [tripChangeSelection, clearTripChangeSelection]);
+
+  if (!ride) {
+    return <div className="px-4 py-8"><p className="text-muted">{copy("searching")}</p></div>;
+  }
+
+  if (backendRide && !ride.driver) {
     return (
       <div className="px-4 py-8">
-        <p className="text-muted">{copy("searching")}</p>
-        <Btn className="mt-4" onClick={() => useRaah.getState().replace("home")}>
-          {copy("navHome")}
-        </Btn>
+        <Header title="Finding your Captain" subtitle="Your Kida ride request is being matched." />
+        <div className="mt-4 rounded-3xl border border-line bg-paper p-4">
+          <p className="font-semibold">Waiting for an eligible Captain</p>
+          <p className="mt-1 text-sm text-muted">Kida will update this screen after a Captain accepts. Keep the app open to receive dispatch updates.</p>
+        </div>
       </div>
     );
   }
+
+  if (!ride.driver) {
+    return (
+      <div className="px-4 py-8">
+        <p className="text-muted">{copy("searching")}</p>
+        <Btn className="mt-4" onClick={() => useRaah.getState().replace("home")}>{copy("navHome")}</Btn>
+      </div>
+    );
+  }
+
   const leftKm = Math.max(0.2, Math.round(ride.fare.km * (1 - ride.progress) * 10) / 10);
   const leftMin = Math.max(1, Math.round(ride.fare.minutes * (1 - ride.progress)));
+  const statusLabel = ride.backendStatus === "in_progress"
+    ? "Trip in progress"
+    : ride.backendStatus === "arrived"
+      ? "Captain has arrived"
+      : ride.backendStatus === "captain_arriving"
+        ? "Captain is on the way"
+        : ride.backendStatus === "accepted"
+          ? "Captain accepted your ride"
+          : ride.status === "ongoing" ? copy("onTrip") : copy("arriving");
+
   return (
     <div className="pb-6">
       <div className="px-4 pt-3">
@@ -42,70 +105,95 @@ export function TrackingScreen() {
           drop={ride.drop}
           stops={ride.stops ?? []}
           routePath={ride.routePath}
+          captainLocation={ride.captainLocation}
           className="h-72"
         />
       </div>
       <div className="space-y-3 px-4 pt-3">
         <div className="flex items-end justify-between">
           <div>
-            <p className="text-sm text-muted">{ride.status === "ongoing" ? copy("onTrip") : copy("arriving")}</p>
-            <p className="font-display text-4xl tabular">
-              {leftMin} {copy("min")}
+            <p className="text-sm text-muted">{statusLabel}</p>
+            <p className="font-display text-3xl tabular">
+              {backendRide
+                ? ride.backendStatus === "in_progress" ? "On the way" : ride.backendStatus === "arrived" ? "At pickup" : "Captain assigned"
+                : `${leftMin} ${copy("min")}`}
             </p>
             <p className="text-sm text-muted tabular">
-              {leftKm} km · {copy("trackSim")}
+              {backendRide
+                ? ride.captainLocation ? "Captain location is updating" : "Waiting for the latest Captain location"
+                : `${leftKm} km · ${copy("trackSim")}`}
             </p>
           </div>
-          <Pill tone="warn">{ride.source === "call" ? copy("callCta") : copy("proto")}</Pill>
+          <Pill tone={backendRide ? "ok" : "warn"}>{backendRide ? "Kida dispatch" : ride.source === "call" ? copy("callCta") : copy("proto")}</Pill>
         </div>
-        <div className="h-2 overflow-hidden rounded-full bg-paper">
-          <div className="h-full bg-primary" style={{ width: `${Math.round(ride.progress * 100)}%` }} />
-        </div>
+        {!backendRide ? (
+          <div className="h-2 overflow-hidden rounded-full bg-paper">
+            <div className="h-full bg-primary" style={{ width: `${Math.round(ride.progress * 100)}%` }} />
+          </div>
+        ) : null}
         <div className="kida-card flex items-center gap-3 rounded-3xl border border-line p-3">
-          <Avatar name={ride.driver.name} className="size-14" />
+          {ride.driver.photoUrl ? <img src={ride.driver.photoUrl} alt={ride.driver.name + " verified Captain photograph"} className="size-14 rounded-full border border-line object-cover" /> : <Avatar name={ride.driver.name} className="size-14" />}
           <div className="min-w-0 flex-1">
             <p className="font-semibold">{ride.driver.name}</p>
             <p className="text-sm text-muted">
-              {ride.driver.rating} · {ride.driver.trips} trips · {ride.driver.colour}
+              {ride.driver.rating ? `${ride.driver.rating} ★${ride.driver.ratingCount ? ` · ${ride.driver.ratingCount} ratings` : ""} · ` : ""}
+              {ride.driver.colour ?? (backendRide ? "Verified Kida Captain" : "")}
             </p>
-            <p className="text-xs text-muted">{copy("simDriver")}</p>
+            <p className="text-xs text-muted">{backendRide ? "Assigned through Kida" : copy("simDriver")}</p>
+            {backendRide && ride.driver.licenceIdentifier ? <p className="text-xs text-muted">Licence ID / ULIN: {ride.driver.licenceIdentifier}</p> : null}
           </div>
           <div className="rounded-lg border-2 border-ink bg-road px-2 py-1 text-center">
             <p className="text-xs font-semibold">{copy("plate")}</p>
-            <p className="font-semibold tabular">{ride.driver.plate}</p>
+            <p className="font-semibold tabular">{ride.driver.plate ?? "Vehicle verified"}</p>
           </div>
         </div>
-        {ride.tripPin ? <div className="rounded-2xl border border-primary bg-primary-soft px-3 py-3"><p className="text-xs font-semibold text-muted">YOUR RIDE PIN</p><p className="mt-1 font-display text-3xl tracking-[0.3em] tabular">{ride.tripPin}</p><p className="mt-1 text-xs text-muted">Share this PIN with the Captain only when you are at the pickup and have verified the vehicle.</p></div> : null}
+        {ride.tripPin ? (
+          <div className="rounded-2xl border border-primary bg-primary-soft px-3 py-3">
+            <p className="text-xs font-semibold text-muted">YOUR RIDE PIN</p>
+            <p className="mt-1 font-display text-3xl tracking-[0.3em] tabular">{ride.tripPin}</p>
+            <p className="mt-1 text-xs text-muted">Show this PIN to the Captain only after you have reached the pickup and verified the vehicle.</p>
+          </div>
+        ) : null}
+        {backendRide && ride.backendStatus === "in_progress" ? (
+          <div className="rounded-2xl border border-primary/30 bg-primary-soft p-3">
+            <p className="font-semibold">Need to change your route?</p>
+            <p className="mt-1 text-xs text-muted">Choose an extra stop or a new destination. Kida recalculates the road route and fare, then asks your Captain to accept it.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Btn variant="line" disabled={changeBusy} onClick={() => ride.backendBookingId && beginTripChange(ride.backendBookingId,"add_stop")}>Add a stop</Btn>
+              <Btn variant="line" disabled={changeBusy} onClick={() => ride.backendBookingId && beginTripChange(ride.backendBookingId,"change_destination")}>Change destination</Btn>
+            </div>
+            {changeBusy ? <p role="status" className="mt-2 text-xs text-muted">Submitting your route-change request…</p> : null}
+            {changeNotice ? <p role="status" className="mt-2 text-xs text-ink">{changeNotice}</p> : null}
+            {changeError ? <p role="alert" className="mt-2 text-xs text-danger">{changeError}</p> : null}
+          </div>
+        ) : null}
         <div className="grid grid-cols-4 gap-2">
-          <div className="grid h-16 place-items-center rounded-2xl bg-paper text-center text-xs font-semibold opacity-70 cursor-not-allowed" aria-disabled="true" title="Driver contact becomes available after a live dispatch integration">
+          <div className="grid h-16 place-items-center rounded-2xl bg-paper text-center text-xs font-semibold opacity-70 cursor-not-allowed" aria-disabled="true" title="Captain calling will be enabled with the masked-call provider">
             <Phone className="size-5" />
             {copy("callDriver")}
           </div>
           <button type="button" onClick={() => open("chat")} className="grid h-16 place-items-center rounded-2xl bg-paper text-xs font-semibold">
-            <MessageCircle className="size-5" />
-            {copy("message")}
+            <MessageCircle className="size-5" />{copy("message")}
           </button>
           <button type="button" onClick={() => open("share")} className="grid h-16 place-items-center rounded-2xl bg-paper text-xs font-semibold">
-            <Share2 className="size-5" />
-            {copy("shareTrip")}
+            <Share2 className="size-5" />{copy("shareTrip")}
           </button>
           <button type="button" onClick={() => open("sos")} className="grid h-16 place-items-center rounded-2xl bg-danger-soft text-xs font-semibold text-danger">
-            <ShieldAlert className="size-5" />
-            {copy("sos")}
+            <ShieldAlert className="size-5" />{copy("sos")}
           </button>
         </div>
         <p className="text-xs text-muted">
-          {vehicleLabel(lang, ride.vehicle)} · {copy("callDriver")} opens your dialer for the prototype desk, not a live driver.
+          {vehicleLabel(lang, ride.vehicle)} · {backendRide ? "Captain contact and payments are not enabled yet." : copy("callDriver") + " is a prototype action."}
         </p>
-        <div className="grid grid-cols-2 gap-2">
-          <Btn variant="line" onClick={() => setWhy((v) => !v)}>
-            {copy("cancelRide")}
-          </Btn>
-          <Btn variant="soft" onClick={complete}>
-            {copy("endDemo")}
-          </Btn>
-        </div>
-        {why ? <CancelBox /> : null}
+        {!backendRide ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Btn variant="line" onClick={() => setWhy((value) => !value)}>{copy("cancelRide")}</Btn>
+            <Btn variant="soft" onClick={complete}>{copy("endDemo")}</Btn>
+          </div>
+        ) : (
+          <p className="rounded-xl bg-paper p-3 text-sm text-muted">Your Captain's trip progress and location will refresh automatically. Payments are not being collected in this build.</p>
+        )}
+        {why && !backendRide ? <CancelBox /> : null}
       </div>
     </div>
   );
@@ -169,6 +257,23 @@ export function CompleteScreen() {
   const [stars, setStars] = useState(5);
   const [text, setText] = useState("");
   const [tipAmount, setTipAmount] = useState(0);
+  const [ratingBusy, setRatingBusy] = useState(false);
+  const [ratingError, setRatingError] = useState("");
+  async function submitRating() {
+    if (!ride || ratingBusy) return;
+    setRatingBusy(true);
+    setRatingError("");
+    try {
+      if (ride.backendBookingId && ride.backendStatus === "completed") {
+        await rateMyCompletedRide({ data: { bookingId: ride.backendBookingId, rating: stars, feedback: text } });
+      }
+      rate(stars, text, tipAmount);
+    } catch (cause) {
+      setRatingError(cause instanceof Error ? cause.message : "Your rating could not be saved. Please try again.");
+    } finally {
+      setRatingBusy(false);
+    }
+  }
   if (!ride) return null;
   return (
     <div className="px-4 py-6">
@@ -210,8 +315,9 @@ export function CompleteScreen() {
         onChange={(event) => setText(event.target.value)}
         placeholder={copy("feedbackPh")}
       />
-      <Btn className="mt-4 w-full" onClick={() => rate(stars, text, tipAmount)}>
-        {copy("done")}
+      {ratingError ? <p role="alert" className="mt-3 text-sm text-danger">{ratingError}</p> : null}
+      <Btn className="mt-4 w-full" disabled={ratingBusy} onClick={() => void submitRating()}>
+        {ratingBusy ? "Saving rating…" : copy("done")}
       </Btn>
     </div>
   );
@@ -505,6 +611,20 @@ export function ShareScreen() {
   const [message,setMessage] = useState("");
   async function share() {
     if (!ride) return;
+    if (ride.backendBookingId) {
+      try {
+        const created = await createLiveTripShare({ data: { bookingId: ride.backendBookingId } });
+        const liveUrl = window.location.origin + "/share/" + created.token;
+        if (navigator.share) {
+          await navigator.share({ title: "Kida live trip", text: "Track this Kida trip using the private link.", url: liveUrl });
+          setMessage("Live trip link shared. It expires automatically in 12 hours.");
+        } else if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(liveUrl);
+          setMessage("Live trip link copied. It expires automatically in 12 hours.");
+        } else { setMessage(liveUrl); }
+      } catch (cause) { setMessage(cause instanceof Error ? cause.message : "A live trip link could not be created."); }
+      return;
+    }
     const route = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${ride.pickup.lat}%2C${ride.pickup.lng}%3B${ride.drop.lat}%2C${ride.drop.lng}`;
     const details = [
       "Kida trip details",
@@ -540,9 +660,9 @@ export function ShareScreen() {
           <p className="tabular text-lg">{ride?.driver?.plate ?? "Vehicle not assigned"}</p>
           <p className="mt-2 text-sm text-muted">{ride?.pickup.line}</p>
           <p className="text-sm text-muted">{ride?.drop.line}</p>
-          <p className="mt-3 text-xs text-muted">This shares trip details and an OpenStreetMap route. It is not a live tracking link; realtime trip sharing needs the Kida backend.</p>
+          <p className="mt-3 text-xs text-muted">{ride?.backendBookingId ? "This private link shows trip status and the latest available Captain GPS. It expires after 12 hours." : "This prototype ride can share details only. Live trip links are available for account-backed Kida bookings."}</p>
         </div>
-        <button type="button" onClick={() => void share()} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary font-semibold text-primary-ink"><Share2 className="size-4"/> Share trip details</button>
+        <button type="button" onClick={() => void share()} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary font-semibold text-primary-ink"><Share2 className="size-4"/> {ride?.backendBookingId ? "Create live trip link" : "Share trip details"}</button>
         {message ? <p className="text-sm text-muted">{message}</p> : null}
       </div>
     </div>
