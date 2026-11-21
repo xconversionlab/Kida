@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   getKidaCampaignReport,
   listKidaCampaigns,
@@ -57,7 +57,7 @@ export function CampaignManager() {
     setVehicles(current => current.includes(id) ? current.filter(x=>x!==id) : [...current,id]);
   }
 
-  async function createCampaign(event: React.FormEvent<HTMLFormElement>) {
+  async function createCampaign(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setSaving(true); setError(""); setNotice("");
     try {
       await saveKidaCampaign({data:{

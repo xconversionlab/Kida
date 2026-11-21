@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { cancelMyBooking, createMySupportTicket } from "@/lib/kida/server";
+import { createLiveTripShare } from "@/lib/kida/client-requirements-server";
 import { MessageCircle, Phone, Share2, ShieldAlert } from "lucide-react";
 import { company } from "@/lib/raah/company";
 import { payLabel, vehicleLabel } from "@/lib/raah/labels";
@@ -546,6 +547,20 @@ export function ShareScreen() {
   const [message,setMessage] = useState("");
   async function share() {
     if (!ride) return;
+    if (ride.backendBookingId) {
+      try {
+        const created = await createLiveTripShare({ data: { bookingId: ride.backendBookingId } });
+        const liveUrl = window.location.origin + "/share/" + created.token;
+        if (navigator.share) {
+          await navigator.share({ title: "Kida live trip", text: "Track this Kida trip using the private link.", url: liveUrl });
+          setMessage("Live trip link shared. It expires automatically in 12 hours.");
+        } else if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(liveUrl);
+          setMessage("Live trip link copied. It expires automatically in 12 hours.");
+        } else { setMessage(liveUrl); }
+      } catch (cause) { setMessage(cause instanceof Error ? cause.message : "A live trip link could not be created."); }
+      return;
+    }
     const route = `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${ride.pickup.lat}%2C${ride.pickup.lng}%3B${ride.drop.lat}%2C${ride.drop.lng}`;
     const details = [
       "Kida trip details",
@@ -581,9 +596,9 @@ export function ShareScreen() {
           <p className="tabular text-lg">{ride?.driver?.plate ?? "Vehicle not assigned"}</p>
           <p className="mt-2 text-sm text-muted">{ride?.pickup.line}</p>
           <p className="text-sm text-muted">{ride?.drop.line}</p>
-          <p className="mt-3 text-xs text-muted">This shares trip details and an OpenStreetMap route. It is not a live tracking link; realtime trip sharing needs the Kida backend.</p>
+          <p className="mt-3 text-xs text-muted">{ride?.backendBookingId ? "This private link shows trip status and the latest available Captain GPS. It expires after 12 hours." : "This prototype ride can share details only. Live trip links are available for account-backed Kida bookings."}</p>
         </div>
-        <button type="button" onClick={() => void share()} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary font-semibold text-primary-ink"><Share2 className="size-4"/> Share trip details</button>
+        <button type="button" onClick={() => void share()} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary font-semibold text-primary-ink"><Share2 className="size-4"/> {ride?.backendBookingId ? "Create live trip link" : "Share trip details"}</button>
         {message ? <p className="text-sm text-muted">{message}</p> : null}
       </div>
     </div>

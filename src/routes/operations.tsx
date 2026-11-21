@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNo
 import { EmailPasswordForm } from "@/components/auth/EmailPasswordForm";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { getOperationsDashboard, reviewCaptainApplication } from "@/lib/kida/operations-server";
+import { CampaignManager } from "@/components/kida/CampaignManager";
 import {
   emptyCaptainDocumentChecks,
   isCaptainApplicationApprovalReady,
@@ -374,6 +375,8 @@ function OperationsDashboard() {
             </div>
           )}
         </section>
+
+        <CampaignManager />
 
         <section className="grid items-start gap-4 lg:grid-cols-[minmax(300px,0.85fr)_minmax(0,1.4fr)]">
           <Panel className="overflow-hidden p-0">

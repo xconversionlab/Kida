@@ -11,6 +11,7 @@ import {
   updateCaptainLocation,
 } from "@/lib/kida/captain-server";
 import { MapView } from "@/components/raah/MapView";
+import { CaptainControls } from "@/components/kida/CaptainControls";
 import type { Selection } from "@/lib/raah/types";
 
 export const Route = createFileRoute("/captain")({ component: CaptainApp });
@@ -41,6 +42,13 @@ const initialForm: ApplicationForm = {
   drivingLicence: false,
   commercialPermit: false,
   insurance: false,
+};
+
+type CaptainLanguage = "en" | "hi" | "mr";
+const CAPTAIN_COPY: Record<CaptainLanguage, Record<string,string>> = {
+  en: { workspace:"Captain workspace",hello:"Hello, Captain",availability:"Your availability",goOnline:"Go online",goOffline:"Go offline",activeBooking:"Active customer booking",requests:"Nearby booking requests",submit:"Submit Captain application",language:"Language" },
+  hi: { workspace:"कैप्टन कार्यक्षेत्र",hello:"नमस्ते, कैप्टन",availability:"आपकी उपलब्धता",goOnline:"ऑनलाइन हों",goOffline:"ऑफलाइन हों",activeBooking:"ग्राहक की सक्रिय बुकिंग",requests:"आस-पास की बुकिंग",submit:"कैप्टन आवेदन भेजें",language:"भाषा" },
+  mr: { workspace:"कॅप्टन कार्यक्षेत्र",hello:"नमस्कार, कॅप्टन",availability:"तुमची उपलब्धता",goOnline:"ऑनलाइन व्हा",goOffline:"ऑफलाइन व्हा",activeBooking:"ग्राहकाची सक्रिय बुकिंग",requests:"जवळील बुकिंग",submit:"कॅप्टन अर्ज पाठवा",language:"भाषा" },
 };
 
 const VEHICLES: { id: VehicleChoice; label: string }[] = [
@@ -138,6 +146,8 @@ function CaptainApp() {
   const [tripPin, setTripPin] = useState("");
   const [tripBusy, setTripBusy] = useState(false);
   const [captainPosition, setCaptainPosition] = useState<{ lat: number; lng: number } | null>(null);
+  const [language, setLanguage] = useState<CaptainLanguage>("en");
+  const translate = (key: string) => CAPTAIN_COPY[language][key] ?? CAPTAIN_COPY.en[key] ?? key;
   const watchId = useRef<number | null>(null);
   const lastLocationSent = useRef(0);
 
@@ -405,7 +415,7 @@ function CaptainApp() {
               ))}
             </div>
             <Button type="submit" disabled={submitting || !form.drivingLicence || !form.commercialPermit || !form.insurance} variant="yellow">
-              {submitting ? "Submitting…" : "Submit Captain application"}
+              {submitting ? "Submitting…" : translate("submit")}
             </Button>
           </form>
           <p className="mt-4 text-xs text-neutral-500">Kida does not accept private vehicles as commercial partners. Approval depends on document, vehicle and local operating-rule verification.</p>
@@ -441,13 +451,20 @@ function CaptainApp() {
     <PageShell>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <TopLabel>Captain workspace</TopLabel>
-          <h1 className="mt-1 text-3xl font-black">Hello, Captain</h1>
+          <TopLabel>{translate("workspace")}</TopLabel>
+          <h1 className="mt-1 text-3xl font-black">{translate("hello")}</h1>
           <p className="text-sm text-neutral-600">{profile.service_city} · {profile.registration_number}</p>
         </div>
-        <span className={`rounded-full px-3 py-2 text-xs font-bold ${isOnline ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-600"}`}>
-          {isOnline ? "ONLINE" : "OFFLINE"}
-        </span>
+        <div className="flex flex-col items-end gap-2">
+          <label className="text-[10px] font-bold text-neutral-500">{translate("language")}
+            <select aria-label="Captain language" value={language} onChange={event=>setLanguage(event.target.value as CaptainLanguage)} className="ml-2 h-9 rounded-lg border border-neutral-200 bg-white px-2 text-xs">
+              <option value="en">English</option><option value="hi">हिन्दी</option><option value="mr">मराठी</option>
+            </select>
+          </label>
+          <span className={`rounded-full px-3 py-2 text-xs font-bold ${isOnline ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-600"}`}>
+            {isOnline ? "ONLINE" : "OFFLINE"}
+          </span>
+        </div>
       </div>
 
       {error ? <Alert>{error}</Alert> : null}
@@ -456,11 +473,11 @@ function CaptainApp() {
       <Card>
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-bold">Your availability</p>
+            <p className="text-sm font-bold">{translate("availability")}</p>
             <p className="mt-1 text-xs text-neutral-500">Go online to receive matching customer bookings.</p>
           </div>
           <Button variant={isOnline ? "light" : "yellow"} disabled={!portal.canAcceptRides && !isOnline} onClick={() => void toggleAvailability()}>
-            {isOnline ? "Go offline" : "Go online"}
+            {isOnline ? translate("goOffline") : translate("goOnline")}
           </Button>
         </div>
         {!portal.canAcceptRides ? (
@@ -483,9 +500,11 @@ function CaptainApp() {
         <p className="mt-3 text-xs text-neutral-500">Wallet and trip earnings are read-only previews in this first Captain build. Payments, commission deductions and payouts are not connected.</p>
       </Card>
 
+      <CaptainControls bookingId={active?.id ?? null} position={captainPosition} />
+
       {active ? (
         <Card>
-          <TopLabel>Active customer booking</TopLabel>
+          <TopLabel>{translate("activeBooking")}</TopLabel>
           <h2 className="mt-1 text-xl font-black">{active.status.replaceAll("_", " ")}</h2>
           <p className="mt-2 text-sm text-neutral-600">Customer: {active.customer_name?.trim() || "Kida customer"}</p>
           <div className="mt-3 grid gap-2 text-sm">
@@ -509,7 +528,7 @@ function CaptainApp() {
       ) : (
         <Card>
           <div className="flex items-center justify-between gap-3">
-            <div><TopLabel>Nearby booking requests</TopLabel><h2 className="mt-1 text-xl font-black">{portal.availableBookings.length} available</h2></div>
+            <div><TopLabel>{translate("requests")}</TopLabel><h2 className="mt-1 text-xl font-black">{portal.availableBookings.length} available</h2></div>
             <Button variant="light" onClick={() => void refresh(true)}>{refreshing ? "Refreshing…" : "Refresh"}</Button>
           </div>
           {!isOnline ? <p className="mt-3 text-sm text-neutral-600">Go online to see bookings for your approved vehicle category.</p>

@@ -333,6 +333,23 @@ export const getMyCaptainPortal = createServerFn({ method: "GET" })
     };
   });
 
+async function getCaptainDailyOnlineMinutes(sql: Awaited<ReturnType<typeof getSql>>, userId: string): Promise<number> {
+  const rows = await sql.query<{ used_minutes: number }>(`
+    with bounds as (
+      select
+        (date_trunc('day', now() at time zone 'Asia/Kolkata') at time zone 'Asia/Kolkata') as day_start,
+        ((date_trunc('day', now() at time zone 'Asia/Kolkata') + interval '1 day') at time zone 'Asia/Kolkata') as day_end
+    )
+    select coalesce(sum(greatest(0, extract(epoch from (
+      least(coalesce(s.ended_at,now()), b.day_end) - greatest(s.started_at,b.day_start)
+    )) / 60)),0)::int as used_minutes
+    from bounds b
+    left join public.kida_captain_work_sessions s
+      on s.captain_user_id=$1 and s.started_at < b.day_end and coalesce(s.ended_at,now()) > b.day_start
+  `, [userId]);
+  return rows[0]?.used_minutes ?? 0;
+}
+
 /** Turn availability on only after admin approval and the required ledger balance are configured. */
 export const setCaptainAvailability = createServerFn({ method: "POST" })
   .validator((input: unknown) => onlineSchema.parse(input))
@@ -340,6 +357,8 @@ export const setCaptainAvailability = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const sql = await getSql();
     if (data.isOnline) {
+      const usedMinutes = await getCaptainDailyOnlineMinutes(sql, context.userId);
+      if (usedMinutes >= 480) throw new Error("You have reached the 8-hour online-time limit for today. You can go online again after the next India-time day begins.");
       const eligibility = await sql.query<{ can_accept_rides: boolean; approval_status: string }>(
         `select c.approval_status,
                 public.kida_captain_can_accept_rides($1) as can_accept_rides
@@ -373,6 +392,11 @@ export const setCaptainAvailability = createServerFn({ method: "POST" })
       [context.userId, data.isOnline],
     );
     if (!rows[0]) throw new Error("Captain profile not found or not approved.");
+    if (data.isOnline) {
+      await sql.query("insert into public.kida_captain_work_sessions (captain_user_id) values ($1) on conflict (captain_user_id) where ended_at is null do nothing", [context.userId]);
+    } else {
+      await sql.query("update public.kida_captain_work_sessions set ended_at=now() where captain_user_id=$1 and ended_at is null", [context.userId]);
+    }
     return rows[0];
   });
 
@@ -384,6 +408,11 @@ export const acceptCaptainBooking = createServerFn({ method: "POST" })
     const sql = await getSql();
     const captain = await requireCaptain(sql, context.userId);
     if (!captain.is_online) throw new Error("Go online before accepting a trip.");
+    if (await getCaptainDailyOnlineMinutes(sql, context.userId) >= 480) {
+      await sql.query("update public.kida_captain_profiles set is_online=false,updated_at=now() where captain_user_id=$1", [context.userId]);
+      await sql.query("update public.kida_captain_work_sessions set ended_at=now() where captain_user_id=$1 and ended_at is null", [context.userId]);
+      throw new Error("The 8-hour online-time limit has been reached. You have been taken offline for today.");
+    }
     const matchRadiusKm = captainMatchRadiusKm();
     const rows = await sql.query<{
       id: string;
@@ -530,6 +559,11 @@ export const updateCaptainLocation = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
     const sql = await getSql();
+    if (await getCaptainDailyOnlineMinutes(sql, context.userId) >= 480) {
+      await sql.query("update public.kida_captain_profiles set is_online=false,updated_at=now() where captain_user_id=$1", [context.userId]);
+      await sql.query("update public.kida_captain_work_sessions set ended_at=now() where captain_user_id=$1 and ended_at is null", [context.userId]);
+      throw new Error("The 8-hour online-time limit has been reached. You have been taken offline for today.");
+    }
     const rows = await sql.query<{ updated_at: string }>(
       `insert into public.kida_captain_locations
          (captain_user_id, latitude, longitude, accuracy_m, heading_deg, speed_mps, updated_at)

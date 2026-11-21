@@ -169,7 +169,7 @@ export const setKidaCampaignStatus = createServerFn({ method: "POST" })
          returning id, status
       ), audit as (
         insert into public.kida_campaign_audit (campaign_id, actor_user_id, action, after_state)
-        select id, $3, $2, jsonb_build_object('status',status) from changed
+        select id, $3, case when $2='active' then 'activated' else $2 end, jsonb_build_object('status',status) from changed
         returning campaign_id
       )
       select id::text as id, status from changed
